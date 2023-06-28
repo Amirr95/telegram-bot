@@ -1,3 +1,4 @@
+import json
 import logging
 from logging.handlers import RotatingFileHandler
 import datetime
@@ -26,7 +27,7 @@ logger = logging.getLogger("agriWeather-bot")
 # Constants for ConversationHandler states
 BROADCAST = 0
 ASK_PROVINCE, ASK_CITY, ASK_VILLAGE, ASK_AREA, ASK_PHONE, ASK_LOCATION, ASK_NAME, HANDLE_NAME = range(8)
-
+DEFINE, SET_TEXT = range(2)
 TOKEN = os.environ["AGRIWEATHBOT_TOKEN"]
 
 persistence = PicklePersistence(filename='bot_data.pickle')
@@ -219,6 +220,45 @@ def handle_name(update: Update, context: CallbackContext):
     return ConversationHandler.END
 
 
+def label(update: Update, context: CallbackContext):
+    # list-json-files
+    # json_files = [f for f in os.listdir() if f.endswith(".json")]
+    user_id = update.effective_user.id
+    if user_id in ADMIN_LIST:
+        update.message.reply_text("برای هر لیبل با توجه به معنی آن، متن ارسالی برای کاربر را تعیین کنید.")
+        with open("decode.json", "r", encoding="utf8") as f:
+            context.user_data['label'] = json.load(f)["decode-table"]
+        return DEFINE
+
+
+def define_text(update: Update, context: CallbackContext):
+    user_data = context.user_data
+    labels = user_data["label"]
+    index = user_data.get("index", 0)
+
+    if index < len(labels):
+        row = labels[index]
+        update.message.reply_text(f"what should we do with this?\n\n{row['recom']}")
+        user_data["index"] = index + 1
+    return SET_TEXT
+
+
+def set_text(update: Update, context: CallbackContext):
+    user_data = context.user_data
+    labels = user_data["label"]
+    index = user_data.get("index", 0)
+
+    text = update.message.text
+    labels[index]["text"] = text
+    if index == len(labels):
+        update.message.reply_text("Fin.")
+        with open("decode.json", "w", encoding="utf8") as f:
+            json.dump(labels, f, ensure_ascii=False)
+        return ConversationHandler.END
+    return DEFINE
+
+
+
 def send(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     if user_id in ADMIN_LIST:    
@@ -403,6 +443,14 @@ def main():
             fallbacks=[CommandHandler('cancel', cancel)]
         )
 
+        label_conv = ConversationHandler(
+            entry_points=[CommandHandler('label', label)],
+            states={
+                DEFINE: [MessageHandler(Filters.all, define_text)],
+                SET_TEXT: [MessageHandler(Filters.all, set_text)]
+            },
+        fallbacks=[CommandHandler('cancel', cancel)]
+        )
 
         broadcast_handler = ConversationHandler(
             entry_points=[CommandHandler('send', send)],
@@ -419,6 +467,7 @@ def main():
 
         dp.add_handler(conv_handler)
         dp.add_handler(broadcast_handler)
+        dp.add_handler(label_conv)
         # dp.add_handler(CommandHandler("stats", bot_stats, filters=Filters.user))
         # Start the bot
         updater.start_polling()
