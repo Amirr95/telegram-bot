@@ -12,11 +12,12 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, Callb
 from telegram.error import BadRequest, Unauthorized, NetworkError
 import os
 from data_utils import to_excel
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+# import matplotlib
+# matplotlib.use("Agg")
+# import matplotlib.pyplot as plt
 from fiona.errors import DriverError
 import warnings
+import database
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -37,7 +38,8 @@ ASK_PROVINCE, ASK_CITY, ASK_VILLAGE, ASK_AREA, ASK_PHONE, ASK_LOCATION, ASK_NAME
 
 TOKEN = os.environ["AGRIWEATHBOT_TOKEN"]
 
-persistence = PicklePersistence(filename='bot_data.pickle')
+db = database.Database()
+
 REQUIRED_KEYS = ['produce', 'province', 'city', 'area', 'location', 'name', 'phone']
 PROVINCES = ['کرمان', 'خراسان رضوی', 'خراسان جنوبی', 'یزد', 'فارس', 'سمنان', 'سایر']
 PRODUCTS = ['پسته اکبری', 'پسته اوحدی', 'پسته احمدآقایی', 'پسته بادامی', 'پسته فندقی', 'پسته کله قوچی', 'پسته ممتاز', 'سایر']
@@ -47,14 +49,15 @@ def start(update: Update, context: CallbackContext):
     user = update.effective_user
     name = user.username
     # update.message.reply_text(f"id: {user.id}, username: {user.username}")
-    persistence_data = persistence.user_data # {103465015: {'produce': 'محصول 3', 'province': 'استان 4', 'city': 'اردستان', 'area': '۵۴۳۳۴۵۶', 'location': {'latitude': 35.762059, 'longitude': 51.476923}, 'name': 'امیررضا', 'phone': '۰۹۱۳۳۶۴۷۹۹۱'}})
+    # persistence_data = persistence.user_data # {103465015: {'produce': 'محصول 3', 'province': 'استان 4', 'city': 'اردستان', 'area': '۵۴۳۳۴۵۶', 'location': {'latitude': 35.762059, 'longitude': 51.476923}, 'name': 'امیررضا', 'phone': '۰۹۱۳۳۶۴۷۹۹۱'}})
     user_data = context.user_data # {'produce': 'محصول 3', 'province': 'استان 4', 'city': 'اردستان', 'area': '۵۴۳۳۴۵۶', 'location': {'latitude': 35.762059, 'longitude': 51.476923}, 'name': 'امیررضا', 'phone': '۰۹۱۳۳۶۴۷۹۹۱'}
     user_data['username'] = update.effective_user.username
     user_data['blocked'] = False
-    user_data['join-date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    user_data['first-seen'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     # Check if the user has already signed up
-    if user.id in persistence.user_data:
+    if db.check_if_user_exists(user.id):
+    # if user.id in persistence.user_data:
         if all(key in user_data and user_data[key] for key in REQUIRED_KEYS):
             reply_text = """
 ثبت نام شما تکمیل شده است.
@@ -88,7 +91,7 @@ def ask_province(update: Update, context: CallbackContext):
         update.message.reply_text("لطفا نوع محصول خود را انتخاب کنید:", reply_markup=get_produce_keyboard())
         return ASK_PROVINCE
     produce = update.message.text.strip()
-    user_data['produce'] = produce
+    user_data['product'] = produce
     update.message.reply_text("لطفا استان محل باغ خود را انتخاب کنید:", reply_markup=get_province_keyboard())
     return ASK_CITY
 
@@ -161,7 +164,7 @@ def ask_location(update: Update, context: CallbackContext):
         update.message.reply_text("لطفا شماره تلفن خود را وارد کنید:")
         return ASK_LOCATION
     phone = var.strip()
-    user_data['phone'] = phone
+    user_data['phone-number'] = phone
 
     # persistence.update_user_data(user_id=update.effective_user.id, data = user_data)
     reply_text = "لطفا موقعیت باغ (لوکیشن باغ) خود را بفرستید."
@@ -228,6 +231,9 @@ def handle_name(update: Update, context: CallbackContext):
     """
     # persistence.update_user_data(user_id=update.effective_user.id, data = user_data)
     update.message.reply_text(reply_text)
+    db.add_new_user(user_id=update.effective_user.id, username=user_data["username"], product=user_data["product"],
+                    province=user_data["province"], city=user_data["city"], village=user_data["village"],
+                    phone_number=user_data["phone-number"], name=user_data["name"], location=user_data["location"])
     return ConversationHandler.END
 
 
@@ -241,7 +247,8 @@ def send(update: Update, context: CallbackContext):
 
 
 def broadcast(update: Update, context: CallbackContext):
-    user_data = persistence.get_user_data()
+    # user_data = db.user_collection.find()
+    ids = db.user_collection.distinct("_id")
     i = 0
     message = update.message.text
     if message == "/cancel":
@@ -250,17 +257,17 @@ def broadcast(update: Update, context: CallbackContext):
     if not message:
         update.message.reply_text('لطفا پیام مورد نظرتان را بنویسید:',)
         return BROADCAST
-    for user_id in user_data:    
+    for user_id in ids:    
         try:
             context.bot.send_message(user_id, message)
-            user_data[user_id]["blocked"] = False
+            db.log_message_to_user(user_id=user_id, message=message)
             i += 1            
         except Unauthorized:
             logger.error(f"user {user_id} blocked the bot")
         except BadRequest:
             logger.error(f"chat with {user_id} not found.")
     for id in ADMIN_LIST:
-        context.bot.send_message(id, f"پیام برای {i} نفر از {len(user_data)} نفر ارسال شد.")
+        context.bot.send_message(id, f"پیام برای {i} نفر از {len(ids)} نفر ارسال شد.")
     return ConversationHandler.END
 
 def cancel(update: Update, context: CallbackContext):
@@ -285,23 +292,25 @@ def button(update: Update, context: CallbackContext):
             member_count = pickle.load(f)
         # stat.edit_message_text(text=f"تعداد کل اعضا: {member_count['member_count'][-1]}")
         context.bot.send_message(chat_id=id, text=f"تعداد کل اعضا: {member_count['member_count'][-1]}")
-    elif stat.data == "member_count_change":
-        with open("bot_members_data.pickle", "rb") as f:
-            data = pickle.load(f)
-        if len(data['time']) < 15:
-            plt.plot(data['time'], data['member_count'], 'ro')
-        else:
-            plt.plot(data['time'][-15:], data['member_count'][-15:], 'r-')
-        plt.xlabel('Time')
-        plt.ylabel('Members')
-        plt.title('Bot Members Over Time')
-        plt.xticks(rotation=45)
-        plt.tight_layout()
-        plt.savefig("member-change.png")
-        photo = open("member-change.png", "rb")
-        context.bot.send_photo(chat_id=id, photo=photo)
-        photo.close()
-        os.remove("member-change.png")
+    # elif stat.data == "member_count_change":
+    #     with open("bot_members_data.pickle", "rb") as f:
+    #         data = pickle.load(f)
+    #     if len(data['time']) < 15:
+    #         pass
+    #         plt.plot(data['time'], data['member_count'], 'ro')
+    #     else:
+    #         pass
+    #         # plt.plot(data['time'][-15:], data['member_count'][-15:], 'r-')
+    #     # plt.xlabel('Time')
+    #     # plt.ylabel('Members')
+    #     # plt.title('Bot Members Over Time')
+    #     # plt.xticks(rotation=45)
+    #     # plt.tight_layout()
+    #     # plt.savefig("member-change.png")
+    #     # photo = open("member-change.png", "rb")
+    #     # context.bot.send_photo(chat_id=id, photo=photo)
+    #     # photo.close()
+    #     # os.remove("member-change.png")
     elif stat.data == "excel_download":
         input_file="bot_data.pickle"
         output_file="member-data.xlsx"
@@ -340,8 +349,8 @@ def get_produce_keyboard():
     return ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, input_field_placeholder="salam")
 
 
-def get_member_count(persistence: persistence, bot: Bot):
-    user_data = persistence.get_user_data()
+def get_member_count(bot: Bot):
+    user_data = db.user_collection.find()
     current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     member_count = len(user_data)
     try:
@@ -361,48 +370,51 @@ def get_member_count(persistence: persistence, bot: Bot):
     # Append new data to DataFrame
 
 
-def send_advice_to_users(persistence: persistence, bot: Bot):
-    user_data = persistence.get_user_data()
+def send_advice_to_users(bot: Bot):
+    user_data = db.user_collection.find()
+    ids = db.user_collection.distinct("_id")
     current_day = datetime.datetime.now().strftime("%Y%m%d")
     villages = pd.read_excel("vilages.xlsx")
     message_count = 0
     receiver_id = []
     try:
-        advise_data = gpd.read_file(f"Pesteh{current_day}.geojson")
+        advise_data = gpd.read_file(f"pesteh{current_day}.geojson")
         # advise_data = advise_data.dropna(subset=['Adivse'])
-        for id in user_data:
+        for id in ids:
             # if user_data[id].get("province") == prov:
-            if id==103465015 or id==350606186:
-                longitude = 55.64867451
-                latitude = 30.53236301
-            elif id==117133536:
-                longitude = 55.834766
-                latitude = 29.265048
-            elif id==6210067446:  
-                longitude = 56.7328547
-                latitude = 30.3160766
-            elif id==147021441:  
-                longitude = 56.74348157151028
-                latitude = 30.583021105790174
-            elif user_data[id].get("location"):
-                longitude = user_data[id]["location"]["longitude"]
-                latitude = user_data[id]["location"]["latitude"]
-            elif not user_data[id].get("location") and user_data[id].get("village"):
-                province = user_data[id]["province"]
-                city = user_data[id]["city"]
-                village = user_data[id]["village"]
-                row = villages.loc[(villages["ProvincNam"] == province) & (villages["CityName"] == city) & (villages["NAME"] == village)]
-                if row.empty:
-                    longitude = None
-                    latitude = None
-                elif not row.empty and len(row)==1:
-                    longitude = row["X"]
-                    latitude = row["Y"]
-                    logger.info(f"village {village} was found in villages.xlsx")
-            else:
-                logger.info(f"Location of user:{id} was not found")
-                latitude = None
-                longitude = None
+            longitude = 61
+            latitude = 37.7
+            # if id==103465015 or id==350606186:
+            #     longitude = 55.64867451
+            #     latitude = 30.53236301
+            # elif id==117133536:
+            #     longitude = 55.834766
+            #     latitude = 29.265048
+            # elif id==6210067446:  
+            #     longitude = 56.7328547
+            #     latitude = 30.3160766
+            # elif id==147021441:  
+            #     longitude = 56.74348157151028
+            #     latitude = 30.583021105790174
+            # elif user_data[id].get("location"):
+            #     longitude = user_data[id]["location"]["longitude"]
+            #     latitude = user_data[id]["location"]["latitude"]
+            # elif not user_data[id].get("location") and user_data[id].get("village"):
+            #     province = user_data[id]["province"]
+            #     city = user_data[id]["city"]
+            #     village = user_data[id]["village"]
+            #     row = villages.loc[(villages["ProvincNam"] == province) & (villages["CityName"] == city) & (villages["NAME"] == village)]
+            #     if row.empty:
+            #         longitude = None
+            #         latitude = None
+            #     elif not row.empty and len(row)==1:
+            #         longitude = row["X"]
+            #         latitude = row["Y"]
+            #         logger.info(f"village {village} was found in villages.xlsx")
+            # else:
+            #     logger.info(f"Location of user:{id} was not found")
+            #     latitude = None
+            #     longitude = None
             
             if latitude is not None and longitude is not None: 
                 logger.info(f"Location of user:{id} was found")
@@ -428,6 +440,7 @@ def send_advice_to_users(persistence: persistence, bot: Bot):
                         try: 
                             # bot.send_message(chat_id=id, location=Location(latitude=latitude, longitude=longitude))
                             bot.send_message(chat_id=id, text=message)
+                            db.log_new_message(user_id=id, message=message)
                             logger.info(f"sent recommendation to {id}")
                             message_count += 1
                             receiver_id.append(id)
@@ -461,12 +474,12 @@ def send_up_notice(bot: Bot):
 # Function to send personalized scheduled messages
 def send_location_guide(update: Update, context: CallbackContext, bot: Bot):
     # Retrieve all user data
-    user_data = persistence.get_user_data()
+    ids = db.user_collection.distinct("_id")
     i = 0
-    for user_id in user_data:
+    for user_id in ids:
             chat = context.bot.getChat(user_id)
             username = chat.username
-            user_data[user_id]['username'] = username
+            # user_data[user_id]['username'] = username
             # if not "location" in user_data[user_id]:
             message = """
 باغدار عزیز برای ارسال توصیه‌های هواشناسی، به لوکیشن (موقعیت جغرافیایی) باغ شما نیاز داریم.
@@ -476,22 +489,23 @@ def send_location_guide(update: Update, context: CallbackContext, bot: Bot):
                 """
             try:
                 bot.send_message(user_id, message) ##, parse_mode=telegram.ParseMode.MARKDOWN_V2)
-                user_data[user_id]["blocked"] = False
-                user_data[user_id]['send-location-date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                # user_data[user_id]["blocked"] = False
+                # user_data[user_id]['send-location-date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 i += 1
                 
             except Unauthorized:
-                user_data[user_id]["blocked"] = True
-                user_data[user_id]['block-date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"send_location_data succeeded for {i} out of {len(user_data)} users.")
-    with open("location_guide_data.pickle", "wb") as job_data:
-        pickle.dump(user_data, job_data)
+                logger.info(f"user {user_id} blocked the bot")
+                # user_data[user_id]["blocked"] = True
+                # user_data[user_id]['block-date'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logger.info(f"send_location_data succeeded for {i} out of {len(ids)} users.")
+    # with open("location_guide_data.pickle", "wb") as job_data:
+    #     pickle.dump(user_data, job_data)
             
 
 def error_handler(update: Update, context: CallbackContext):
     logger.error('Update "%s" caused error "%s"', update, context.error)
 def main():
-        updater = Updater(TOKEN, persistence=persistence, use_context=True) # , request_kwargs={'proxy_url': PROXY_URL})
+        updater = Updater(TOKEN, use_context=True) # , request_kwargs={'proxy_url': PROXY_URL})
 
         # Get the dispatcher to register handlers
         dp = updater.dispatcher
@@ -537,8 +551,8 @@ def main():
         # job_queue.run_repeating(lambda context: send_scheduled_messages(updater, context, context.bot), 
         #                         interval=datetime.timedelta(seconds=5).total_seconds())
         # job_queue.run_once(lambda context: send_location_guide(updater, context, context.bot), when=60)    
-        job_queue.run_repeating(lambda context: get_member_count(persistence, context.bot), interval=3600, first=10)
-        job_queue.run_repeating(lambda context: send_advice_to_users(persistence, context.bot),
+        job_queue.run_repeating(lambda context: get_member_count(context.bot), interval=3600, first=10)
+        job_queue.run_repeating(lambda context: send_advice_to_users(context.bot),
                                 interval=datetime.timedelta(days=1),
                                 first=datetime.timedelta(seconds=20))
         job_queue.run_once(lambda context: send_up_notice(context.bot), when=5)
