@@ -56,7 +56,7 @@ def start(update: Update, context: CallbackContext):
     user_data['first-seen'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     # Check if the user has already signed up
-    if db.check_if_user_exists(user.id):
+    if db.check_if_user_is_signed_up(user.id):
     # if user.id in persistence.user_data:
         if all(key in user_data and user_data[key] for key in REQUIRED_KEYS):
             reply_text = """

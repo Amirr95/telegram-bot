@@ -2,7 +2,7 @@ import pymongo
 from datetime import datetime
 
 
-USER_FIELDS = [
+REQUIRED_FIELDS = [
     "_id",
     "username",
     "product",
@@ -33,6 +33,16 @@ class Database:
             else:
                 return False
 
+    def check_if_user_is_signed_up(self, user_id: int, required_keys: list):
+        if not self.check_if_user_exists(user_id=user_id):
+            return False
+        else:
+            document = self.user_collection.find_one( {"_id": user_id} )
+            if all(key in document for key in required_keys):
+                return True
+            else:
+                return False
+
     def check_if_dialog_exists(self, user_id: int, raise_exception: bool = False):
         if self.dialog_collection.count_documents({"_id": user_id}) > 0:
             return True
@@ -40,45 +50,45 @@ class Database:
             if raise_exception:
                 raise ValueError(f"User {user_id} does not exist")
             else:
-
                 return False
 
     def add_new_user(
         self,
         user_id,
-        username: str = "",
-        product: str = "",
-        province: str = "",
-        city: str = "",
-        village: str = "",
-        phone_number: str = "",
-        name: str = "",
-        location: dict = {},
+        username: str = ""
+        # ,
+        # product: str = "",
+        # province: str = "",
+        # city: str = "",
+        # village: str = "",
+        # phone_number: str = "",
+        # name: str = "",
+        # location: dict = {},
     ):
         user_dict = {
             "_id": user_id,
             "username": username,
-            "product": product,
-            "province": province,
-            "city": city,
-            "village": village,
-            "phone_number": phone_number,
-            "name": name,
-            "location": location,
-            "first-seen": datetime.now().strftime("%Y-%m-%d H:m:s")
+            # "product": product,
+            # "province": province,
+            # "city": city,
+            # "village": village,
+            # "phone_number": phone_number,
+            # "name": name,
+            # "location": location,
+            "first-seen": datetime.now().strftime("%Y-%m-%d %H:%m:%s"),
         }
 
         if not self.check_if_user_exists(user_id=user_id):
-            self.user_collection.insert_one( user_dict )
-    
+            self.user_collection.insert_one(user_dict)
+
     def get_user_attribute(self, user_id: int, key: str):
         self.check_if_user_exists(user_id=user_id, raise_exception=True)
-        user_dict = self.user_collection.find_one( {"_id": user_id} )
+        user_dict = self.user_collection.find_one({"_id": user_id})
 
         if key not in user_dict:
             return None
         return user_dict[key]
-    
+
     def set_user_attribute(self, user_id: int, key: str, value: any):
         self.check_if_user_exists(user_id=user_id, raise_exception=True)
         self.user_collection.update_one({"_id": user_id}, {"$set": {key: value}})
@@ -92,18 +102,16 @@ class Database:
         username: str = "",
         message: str = "",
     ):
-        current_time = datetime.now().strftime("%Y%m%d H:m:s")
+        current_time = datetime.now().strftime("%Y%m%d %H:%m:%s")
         dialog_dict = {
             "_id": user_id,
             "username": username,
-            "message": [f"{current_time} - {message}"]
+            "message": [f"{current_time} - {message}"],
         }
 
         if not self.check_if_dialog_exists(user_id=user_id):
-            self.dialog_collection.insert_one( dialog_dict )
+            self.dialog_collection.insert_one(dialog_dict)
         else:
-            self.dialog_collection.update_one({"id": user_id}, {"$push": {"message": f"{current_time} - {message}"}})
-    
-
-    
-
+            self.dialog_collection.update_one(
+                {"id": user_id}, {"$push": {"message": f"{current_time} - {message}"}}
+            )

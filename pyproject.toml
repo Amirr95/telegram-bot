@@ -13,6 +13,9 @@ geopandas = "^0.13.2"
 pysocks = "^1.7.1"
 openpyxl = "^3.1.2"
 matplotlib = "^3.7.1"
+pymongo = "^4.4.0"
+geopy = "^2.3.0"
+jdatetime = "^4.1.1"
 
 
 [build-system]
