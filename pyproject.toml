@@ -18,6 +18,7 @@ geopy = "^2.3.0"
 jdatetime = "^4.1.1"
 dnspython = "^2.3.0"
 imgkit = "^1.2.3"
+folium = "^0.14.0"
 
 
 [build-system]
