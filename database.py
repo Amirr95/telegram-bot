@@ -15,10 +15,10 @@ REQUIRED_FIELDS = [
 class Database:
     def __init__(self) -> None:
         self.client = pymongo.MongoClient(os.environ["MONGODB_URI"])
-        self.db = self.client["agriweathBot"]  # database name
-        self.user_collection = self.db["newUserCollection"]
-        self.bot_collection = self.db["botCollection"]
-        self.dialog_collection = self.db["dialogCollection"]
+        self.db = self.client[os.environ["MONGODB_NAME"]]  # database name
+        self.user_collection = self.db[os.environ["USER_COLLECTION"]]
+        self.bot_collection = self.db[os.environ["BOT_COLLECTION"]]
+        self.dialog_collection = self.db[os.environ["DIALOG_COLLECTION"]]
 
     def check_if_user_exists(self, user_id: int, raise_exception: bool = False):
         if self.user_collection.count_documents({"_id": user_id}) > 0:
