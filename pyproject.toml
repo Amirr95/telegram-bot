@@ -19,6 +19,7 @@ jdatetime = "^4.1.1"
 dnspython = "^2.3.0"
 imgkit = "^1.2.3"
 requests = "^2.31.0"
+gspread = "^5.10.0"
 
 
 [build-system]
