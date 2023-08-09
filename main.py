@@ -60,6 +60,7 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger("agriWeather-bot")
+logger.error()
 update_message = """
 🟢 Changes:
 ✅ اضافه شدن قابلیت تعیین آیدی گیرنده به دستور /send
