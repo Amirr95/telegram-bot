@@ -29,6 +29,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from fiona.errors import DriverError
 import warnings
+import random
+import string
 import database
 from regular_jobs import send_todays_data, send_up_notice, get_member_count
 from keyboards import (
@@ -67,7 +69,7 @@ update_message = """
 """
 # Constants for ConversationHandler states
 CHOOSE_RECEIVERS, HANDLE_IDS, BROADCAST = range(3)
-HANDLE_QUERY = 0
+HANDLE_INV_LINK = 0
 (
     ASK_PRODUCT,
     ASK_PROVINCE,
@@ -123,6 +125,8 @@ MENU_CMDS = ['✍️ ثبت نام', '🖼 مشاهده باغ ها', '➕ اض�
 def start(update: Update, context: CallbackContext):
     user = update.effective_user
     user_data = context.user_data
+    args = context.args
+    logger.info(f"\n {args} \n")
     # Check if the user has already signed up
     if not db.check_if_user_exists(user_id=user.id):
         user_data["username"] = user.username
@@ -515,6 +519,47 @@ def button(update: Update, context: CallbackContext):
         no_phone_users = db.get_users_without_phone()
         context.bot.send_message(chat_id=id, text=f"تعداد بدون شماره تلفن: {len(no_phone_users)}")
 
+# CREATE PERSONALIZED INVITE LINK FOR A USER
+def invite_link(update: Update, context: CallbackContext):
+    user = update.effective_user
+    db.log_activity(user.id, "chose invite-link menu option")
+    keyboard = [['مشاهده لینک های قبلی'], ['ایجاد لینک دعوت جدید'], ['بازگشت']]
+    update.message.reply_text("لطفا انتخاب کنید:", reply_markup=ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True))
+    return HANDLE_INV_LINK
+
+def handle_invite_link(update: Update, context: CallbackContext):
+    user = update.effective_user
+    message_text = update.message.text
+    if message_text in MENU_CMDS:
+        db.log_activity(user.id, "error - answer in menu_cmd list", message_text)
+        update.message.reply_text("عمیلات قبلی لغو شد. لطفا دوباره تلاش کنید.", reply_markup=start_keyboard())
+        return ConversationHandler.END
+    elif message_text=="بازگشت":
+        db.log_activity(user.id, "back")
+        update.message.reply_text("عمیلات قبلی لغو شد.", reply_markup=start_keyboard())
+        return ConversationHandler.END
+    elif message_text=="مشاهده لینک های قبلی":
+        db.log_activity(user.id, "chose to view previous links")
+        links = db.get_user_attribute(user.id, "invite-links")
+        if links:
+            update.message.reply_text(links, reply_markup=start_keyboard())
+            return ConversationHandler.END
+        else:
+            update.message.reply_text("شما هنوز لینک دعوت نساخته‌اید.", reply_markup=start_keyboard())
+            ConversationHandler.END
+    elif message_text=="ایجاد لینک دعوت جدید":
+        random_string = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(5))
+        db.set_user_attribute(user.id, "invite-links", random_string, array=True)
+        link = f"https://t.me/amir_test_bot?start={random_string}"
+        update.message.reply_text(f"""
+می‌توانید از این لینک برای دعوت دوستان خود استفاده کرده و از مزایای آن بهره‌مند شوید:
+{link}
+""", reply_markup=start_keyboard())
+        return ConversationHandler.END
+    else: 
+        db.log_activity(user.id, "error - option not valid", message_text)
+        update.message.reply_text("عمیلات قبلی لغو شد. لطفا دوباره تلاش کنید.", reply_markup=start_keyboard())
+        return ConversationHandler.END
 # START OF VIEW CONVERSATION
 def view_farm_keyboard(update: Update, context: CallbackContext):
     user = update.effective_user
@@ -1603,6 +1648,13 @@ def main():
         fallbacks=[CommandHandler("cancel", cancel)],
     )
     
+    invite_conv = ConversationHandler(
+        entry_points=[MessageHandler(Filters.regex("دعوت از دیگران"), invite_link)],
+        states={
+            HANDLE_INV_LINK: [MessageHandler(Filters.text , handle_invite_link)]
+        },
+        fallbacks=[CommandHandler("cancel", cancel)],
+    )
 
     add_conv = ConversationHandler(
         entry_points=[MessageHandler(Filters.regex("➕ اضافه کردن باغ"), add)],
@@ -1681,8 +1733,9 @@ def main():
     # Add handlers to the dispatcher
     dp.add_error_handler(error_handler)
 
-    dp.add_handler(add_conv)
     dp.add_handler(register_conv)
+    dp.add_handler(add_conv)
+    dp.add_handler(invite_conv)
     dp.add_handler(weather_conv)
     dp.add_handler(view_conv)
     dp.add_handler(edit_conv)
