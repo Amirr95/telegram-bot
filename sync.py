@@ -245,7 +245,7 @@ def main():
                 sheet.add_missing_farms(user, mongo_doc, missing_farms)
     logger.info("Finished adding new rows")            
     sheet.update_existing_rows()
-
+    logger.info("Finished updating existing rows")
     
 if __name__=="__main__":
     main()
