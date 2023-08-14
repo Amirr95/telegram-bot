@@ -8,5 +8,5 @@ services:
       - .:/sheet-export
     environment:
       - MONGODB_URI=${mongodb_uri}
-    command: python3 -u main.py
+    command: python3 -u sync.py
     
