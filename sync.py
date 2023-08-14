@@ -1,229 +1,228 @@
+import os
+import pymongo
 import gspread
+import time
 import logging
 from logging.handlers import RotatingFileHandler
-import database
-import time
-# Get the MongoDB database
+
+# Enable logging
 logging.basicConfig(
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            encoding="utf-8",
-            level=logging.INFO,
-            handlers=[              
-                RotatingFileHandler("sheet_logs.log", maxBytes=512000, backupCount=5), 
-                logging.StreamHandler(),
-                ],
-            )
-logger = logging.getLogger("google-sheet-exporter")
-db = database.Database()
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    encoding="utf-8",
+    level=logging.INFO,
+    handlers=[
+        RotatingFileHandler(
+            "sheet_logs.log", maxBytes=10000000, backupCount=5
+        ),  # File handler to write logs to a file
+        logging.StreamHandler(),  # Stream handler to display logs in the console
+    ],
+)
+logger = logging.getLogger("sheet-export")
 
+class Sheet():
+    def __init__(self):
+        self.auth = "./path/to/auth.json"
+        self.sheet_name = "database"
+        self.sheet = gspread.service_account(self.auth).open(self.sheet_name).sheet1
+        self.sheet_values = self.sheet.get_all_values()
+        self.num_rows = len(self.sheet_values)
 
-# Convert from MongoDB to Sheet
-def to_sheet(spread_sheet: gspread.Spreadsheet) -> None:
-    users = db.user_collection.distinct("_id")
-    row_index = 1
-    sheet.sheet1.row_count
-    header_row = [  "UserID",
-                    "Username",
-                    "Name",
-                    "First Seen",
-                    "Phone",
-                    "Farm Name",
-                    "Product",
-                    "Province",
-                    "City",
-                    "Village",
-                    "Longitude",
-                    "Latitude",
-                    "Location Method",
-                    "Blocked"]
-    spread_sheet.sheet1.insert_row(header_row, index=row_index)
-    row_index += 1
-    time.sleep(1)
-    # SHEET.INSTER_ROW(header_row)
-    for user_id in users:
-        document = db.user_collection.find_one({"_id": user_id})
-        farms = db.get_farms(user_id=user_id)
-        if not farms:
-            row = [ user_id,
-                    document.get('username'),
-                    document.get('name'),
-                    document.get('first-seen'),
-                    document.get('phone-number'),
-                    document.get('farm name'),
-                    document.get('product'),
-                    document.get('province'),
-                    document.get('city'),
-                    document.get('village'),
-                    document.get('area'),
-                    document.get('longitude'),
-                    document.get('latitude'),
-                    document.get('location-method'),
-                    document.get('blocked')]
-            spread_sheet.sheet1.insert_row(row, index=row_index)
-            row_index += 1
-            time.sleep(1)
-        elif len(farms) == 1:
-            farm_name = list(farms.keys())[0]
-            row = [ user_id,
-                    document.get('username'),
-                    document.get('name'),
-                    document.get('first-seen'),
-                    document.get('phone-number'),
+        self.client = pymongo.MongoClient(os.getenv("MONGODB_URI"))
+        self.db = self.client["agriweathBot"]
+        self.user_collection = self.db["userCollection"]
+
+    def user_exists_in_sheet(self, user_id):
+        rows = [row for row in self.sheet_values[1:] if int(row[0])==user_id]
+        if rows==[]:
+            logger.info(f"user {user_id} doesn't exist in the sheet")
+            return False
+        else:
+            return True
+    
+
+    def add_missing_row(self, user_id: int, mongo_doc: dict = None, farm_name: str = None, ):
+        """
+        Given a user_id and no farm name, this function will look for all farms belonging to the user
+        and add them to the sheet.
+        If farm name is provided, only that farm gets inserted.
+        The new row is inserted at the bottom of the sheet.
+        """
+        # mongo_doc = self.user_collection.find_one( {"_id": user_id} )
+        if not mongo_doc:
+            return
+        
+        if farm_name:
+            row = [ user_id, 
+                    mongo_doc.get("username"),
+                    mongo_doc.get("name"),
+                    mongo_doc.get("first_seen"),
+                    mongo_doc.get("phone"),
                     farm_name,
-                    farms[farm_name].get('product'),
-                    farms[farm_name].get('province'),
-                    farms[farm_name].get('city'),
-                    farms[farm_name].get('village'),
-                    farms[farm_name].get('area'),
-                    farms[farm_name]['location'].get('longitude'),
-                    farms[farm_name]['location'].get('latitude'),
-                    farms[farm_name].get('location-method'),
-                    document.get('blocked')]
-            spread_sheet.sheet1.insert_row(row, index=row_index)
-            row_index += 1
-            time.sleep(1)
-        elif len(farms) > 1:
-            for key in farms:
-                row = [ user_id,
-                        document.get('username'),
-                        document.get('name'),
-                        document.get('first-seen'),
-                        document.get('phone-number'),
-                        key,
-                        farms[key].get('product'),
-                        farms[key].get('province'),
-                        farms[key].get('city'),
-                        farms[key].get('village'),
-                        farms[key].get('area'),
-                        farms[key]['location'].get('longitude'),
-                        farms[key]['location'].get('latitude'),
-                        farms[key].get('location-method'),
-                        document.get('blocked')]
-                spread_sheet.sheet1.insert_row(row, index=row_index)
-                row_index += 1
-                time.sleep(1)
+                    mongo_doc[farm_name].get("product"),
+                    mongo_doc[farm_name].get("province"),
+                    mongo_doc[farm_name].get("city"),
+                    mongo_doc[farm_name].get("village"),
+                    mongo_doc[farm_name].get("area"),
+                    mongo_doc[farm_name].get("longitude"),
+                    mongo_doc[farm_name].get("latitude"),
+                    mongo_doc[farm_name].get("loc_method"),
+                    mongo_doc[farm_name].get("blocked")]
+            self.sheet.insert_row(row, self.num_rows + 1)
+            self.num_rows += 1
+            logger.info(f"added farm: {farm_name} for user {user_id}")
+            time.sleep(0.5)
+        else:
+            farms = mongo_doc.get(farms)
+            if farms:
+                farm_names = list(farms.keys())
+                i = 0
+                for farm in farm_names:
+                    row = [ user_id, 
+                            mongo_doc.get("username"),
+                            mongo_doc.get("name"),
+                            mongo_doc.get("first_seen"),
+                            mongo_doc.get("phone"),
+                            farm,
+                            mongo_doc[farm].get("product"),
+                            mongo_doc[farm].get("province"),
+                            mongo_doc[farm].get("city"),
+                            mongo_doc[farm].get("village"),
+                            mongo_doc[farm].get("area"),
+                            mongo_doc[farm].get("longitude"),
+                            mongo_doc[farm].get("latitude"),
+                            mongo_doc[farm].get("loc_method"),
+                            mongo_doc[farm].get("blocked")]
+                    self.sheet.insert_row(row, self.num_rows + 1)
+                    self.num_rows += 1
+                    logger.info(f"added farm: {farm} for user {user_id}")
+                    time.sleep(0.5)
 
+            else:
+                row = [ user_id, 
+                        mongo_doc.get("username"),
+                        mongo_doc.get("name"),
+                        mongo_doc.get("first_seen"),
+                        mongo_doc.get("phone")]
+                self.sheet.insert_row(row, self.num_rows + 1)
+                self.num_rows += 1
+                logger.info(f"user {user_id} was added to sheet with no farms")
+                time.sleep(0.5)
 
-def update_sheet(spread_sheet: gspread.Spreadsheet):
-    sheet_values = spread_sheet.sheet1.get_all_values()
-    for i, row in enumerate(sheet_values[1:]):
-        user_id = row[0]
-        user_document = db.user_collection.find_one({"_id": int(user_id)})
-        if not user_document:
-            logger.info(f"{user_id} was not in the Mongo database")
-            continue
-        user_farms = user_document.get("farms")
-        if not user_farms:
-            logger.info(f"{user_id} has no farms")
-            continue
-        farm_name = row[5]
-        username = user_document.get("username")
-        name = user_document.get("name")
-        first_seen = user_document.get("first-seen")
-        phone = user_document.get("phone-number")
-        product = str(user_document["farms"][farm_name].get("product"))
-        province = str(user_document["farms"][farm_name].get("province"))
-        city = str(user_document["farms"][farm_name].get("city"))
-        village = str(user_document["farms"][farm_name].get("village"))
-        area = str(user_document["farms"][farm_name].get("area"))
-        longitude = str(user_document["farms"][farm_name]['location'].get("longitude"))
-        latitude = str(user_document["farms"][farm_name]['location'].get("latitude"))
-        loc_method = user_document.get('location-method')
-        blocked = user_document["blocked"]
-        if not (product==row[6] and province==row[7] and city==row[8] and village==row[9] and
-                area==row[10] and longitude==row[11] and latitude==row[12]): 
-            new_row = [user_id, username, name, first_seen, phone, 
-                   farm_name, product, province, city, village, 
-                   area, longitude, latitude, loc_method, blocked]
-            logger.info(f"""{user_id} document was changed like this:
-old: {row[6]} - new: {product}
-old: {row[7]} - new: {province}
-old: {row[8]} - new: {city}
-old: {row[9]} - new: {village}
-old: {row[10]} - new: {area}
-old: {row[11]} - new: {longitude}
-old: {row[12]} - new: {latitude}
-""")
-            spread_sheet.sheet1.update(f"A{i+2}:O{i+2}", [new_row])
-            time.sleep(1)
-
-    # Add new users to the sheet
-    users = db.user_collection.distinct("_id")
-    users_in_sheet = set([int(row[0]) for row in sheet_values[1:]])
-    row_index = len(sheet_values) + 1
-    for user_id in users:
-        if user_id not in users_in_sheet:
-            logger.info(f"{user_id} was not in the sheet")
-            document = db.user_collection.find_one({"_id": user_id})
-            farms = db.get_farms(user_id=user_id)
-            if not farms:
-                row = [ user_id,
-                        document.get('username'),
-                        document.get('name'),
-                        document.get('first-seen'),
-                        document.get('phone-number'),
-                        document.get('farm name'),
-                        document.get('product'),
-                        document.get('province'),
-                        document.get('city'),
-                        document.get('village'),
-                        document.get('area'),
-                        document.get('longitude'),
-                        document.get('latitude'),
-                        document.get('location-method'),
-                        document.get('blocked')]
-                spread_sheet.sheet1.insert_row(row, index=row_index)
-                row_index += 1
-                time.sleep(1)
-            elif len(farms) == 1:
-                farm_name = list(farms.keys())[0]
-                row = [ user_id,
-                        document.get('username'),
-                        document.get('name'),
-                        document.get('first-seen'),
-                        document.get('phone-number'),
+    def update_existing_rows(self):
+        for i, row in enumerate(self.sheet_values[1:]):
+            user_id = int(row[0])
+            farm_name = row[5]
+            mongo_doc = self.user_collection.find_one( {"_id": user_id} )
+            if not mongo_doc:
+                continue
+            if farm_name == "":
+                row = [ user_id, 
+                        mongo_doc.get("username"),
+                        mongo_doc.get("name"),
+                        mongo_doc.get("first_seen"),
+                        mongo_doc.get("phone")]
+                self.sheet.update(f"A{i+2}:O{i+2}", [row])
+                time.sleep(0.5)
+            else:
+                row = [ user_id, 
+                        mongo_doc.get("username"),
+                        mongo_doc.get("name"),
+                        mongo_doc.get("first_seen"),
+                        mongo_doc.get("phone"),
                         farm_name,
-                        farms[farm_name].get('product'),
-                        farms[farm_name].get('province'),
-                        farms[farm_name].get('city'),
-                        farms[farm_name].get('village'),
-                        farms[farm_name].get('area'),
-                        farms[farm_name]['location'].get('longitude'),
-                        farms[farm_name]['location'].get('latitude'),
-                        farms[farm_name].get('location-method'),
-                        document.get('blocked')]
-                spread_sheet.sheet1.insert_row(row, index=row_index)
-                row_index += 1
-                time.sleep(1)
-            elif len(farms) > 1:
-                for key in farms:
-                    row = [ user_id,
-                            document.get('username'),
-                            document.get('name'),
-                            document.get('first-seen'),
-                            document.get('phone-number'),
-                            key,
-                            farms[key].get('product'),
-                            farms[key].get('province'),
-                            farms[key].get('city'),
-                            farms[key].get('village'),
-                            farms[key].get('area'),
-                            farms[key]['location'].get('longitude'),
-                            farms[key]['location'].get('latitude'),
-                            farms[key].get('location-method'),
-                            document.get('blocked')]
-                    spread_sheet.sheet1.insert_row(row, index=row_index)
-                    row_index += 1
-                    time.sleep(1)
+                        mongo_doc[farm_name].get("product"),
+                        mongo_doc[farm_name].get("province"),
+                        mongo_doc[farm_name].get("city"),
+                        mongo_doc[farm_name].get("village"),
+                        mongo_doc[farm_name].get("area"),
+                        mongo_doc[farm_name].get("longitude"),
+                        mongo_doc[farm_name].get("latitude"),
+                        mongo_doc[farm_name].get("loc_method"),
+                        mongo_doc[farm_name].get("blocked")]
+                self.sheet.update(f"A{i+2}:O{i+2}", [row])
+                time.sleep(0.5)
+            
+    # def add_new_users(self, new_user: int = None):
+    #     mongo_users = self.user_collection.distinct("_id")
+    #     if not new_user:
+    #         if self.num_rows == 0:
+    #             new_users = mongo_users
+    #             header_row = [  "UserID",
+    #                             "Username",
+    #                             "Name",
+    #                             "First Seen",
+    #                             "Phone",
+    #                             "Farm Name",
+    #                             "Product",
+    #                             "Province",
+    #                             "City",
+    #                             "Village",
+    #                             "Longitude",
+    #                             "Latitude",
+    #                             "Location Method",
+    #                             "Blocked"]
+    #             self.sheet.insert_row(header_row, index=0)
+    #             self.num_rows += 1
+    #             time.sleep(0.5)
+    #         else:
+    #             try:
+    #                 sheet_users = set([int(row[0]) for row in self.sheet_values[1:]])
+    #                 new_users = [user for user in mongo_users if user not in sheet_users]
+    #             except ValueError:
+    #                 pass
+    #                 # logger.error("row[0] probably couldn't become an INT.")
+    #         for user in new_users:
+    #             self.add_row_to_sheet(user)
+    #     else:
+    #         self.add_row_to_sheet(new_user)
 
+    def find_missing_farms(self, user_id, mongo_doc):
+        mongo_farms = mongo_doc.get("farms", None)
+        if not mongo_farms:
+            return None
+        mongo_farm_names = list(mongo_farms.keys())
+        sheet_farms = [row[5] for row in self.sheet_values if row[0]==str(user_id)]
+        missing = [farm for farm in mongo_farm_names if farm not in sheet_farms]
+        if missing == []:
+            return None
+        else:
+            return missing
+    
+    def add_missing_farms(self, user_id: int, mongo_doc: dict, missing_farms: list):
+        for missing_farm in missing_farms:
+            row = [ user_id, 
+                    mongo_doc.get("username"),
+                    mongo_doc.get("name"),
+                    mongo_doc.get("first_seen"),
+                    mongo_doc.get("phone"),
+                    missing_farm,
+                    mongo_doc[missing_farm].get("product"),
+                    mongo_doc[missing_farm].get("province"),
+                    mongo_doc[missing_farm].get("city"),
+                    mongo_doc[missing_farm].get("village"),
+                    mongo_doc[missing_farm].get("area"),
+                    mongo_doc[missing_farm].get("longitude"),
+                    mongo_doc[missing_farm].get("latitude"),
+                    mongo_doc[missing_farm].get("loc_method"),
+                    mongo_doc[missing_farm].get("blocked")]
+            self.sheet.insert_row(row, self.num_rows + 1)
+            self.num_rows += 1
+            time.sleep(0.5)
 
+def main():
+    sheet = Sheet()
+    mongo_users = sheet.user_collection.distinct("_id")
+    for user in mongo_users:
+        mongo_doc = sheet.user_collection.find_one( {"_id": user} )
+        if not sheet.user_exists_in_sheet(user):
+            sheet.add_missing_row(user, mongo_doc)
+        else:
+            missing_farms = sheet.find_missing_farms(user, mongo_doc)
+            if missing_farms:
+                sheet.add_missing_farms(user, mongo_doc, missing_farms)
+    sheet.update_existing_rows()
 
-
+    
 if __name__=="__main__":
-     # Get the google Sheet
-    gc = gspread.service_account("./.gspread/sheet-database-395306-fa93d0ea2e6e.json")
-    sheet = gc.open("database")
-    try:
-        update_sheet(sheet)
-    except:
-        logger.error("an error occured")
+    main()
+    
