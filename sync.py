@@ -6,6 +6,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import warnings
 
+warnings.filterwarnings("ignore", category=UserWarning)
 # Enable logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -236,7 +237,6 @@ def main():
     logger.info(f"sheet users: {len(set([int(row[0]) for row in sheet.sheet_values[1:]]))}")
     for user in mongo_users:
         mongo_doc = sheet.user_collection.find_one( {"_id": user} )
-        logger.info(f"mongo document: {mongo_doc}")
         if not sheet.user_exists_in_sheet(user):
             sheet.add_missing_row(user, mongo_doc)
         else:
