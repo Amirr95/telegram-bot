@@ -110,6 +110,9 @@ class Sheet():
                 logger.info(f"user {user_id} was added to sheet with no farms")
                 time.sleep(0.5)
 
+    def delete_farm_name_from_sheet(self, user_id, ):
+        pass
+
     def update_existing_rows(self):
         for i, row in enumerate(self.sheet_values[1:]):
             user_id = int(row[0])
@@ -126,23 +129,35 @@ class Sheet():
                 self.sheet.update(f"A{i+2}:O{i+2}", [row])
                 time.sleep(0.5)
             else:
-                row = [ user_id, 
-                        mongo_doc.get("username"),
-                        mongo_doc.get("name"),
-                        mongo_doc.get("first-seen"),
-                        mongo_doc.get("phone-number"),
-                        farm_name,
-                        mongo_doc['farms'][farm_name].get("product"),
-                        mongo_doc['farms'][farm_name].get("province"),
-                        mongo_doc['farms'][farm_name].get("city"),
-                        mongo_doc['farms'][farm_name].get("village"),
-                        mongo_doc['farms'][farm_name].get("area"),
-                        mongo_doc['farms'][farm_name]["location"].get("longitude"),
-                        mongo_doc['farms'][farm_name]["location"].get("latitude"),
-                        mongo_doc['farms'][farm_name].get("location-method"),
-                        mongo_doc['farms'][farm_name].get("blocked")]
-                self.sheet.update(f"A{i+2}:O{i+2}", [row])
-                time.sleep(0.5)
+                try:
+                    row = [ user_id, 
+                            mongo_doc.get("username"),
+                            mongo_doc.get("name"),
+                            mongo_doc.get("first-seen"),
+                            mongo_doc.get("phone-number"),
+                            farm_name,
+                            mongo_doc['farms'][farm_name].get("product"),
+                            mongo_doc['farms'][farm_name].get("province"),
+                            mongo_doc['farms'][farm_name].get("city"),
+                            mongo_doc['farms'][farm_name].get("village"),
+                            mongo_doc['farms'][farm_name].get("area"),
+                            mongo_doc['farms'][farm_name]["location"].get("longitude"),
+                            mongo_doc['farms'][farm_name]["location"].get("latitude"),
+                            mongo_doc['farms'][farm_name].get("location-method"),
+                            mongo_doc['farms'][farm_name].get("blocked")]
+                    self.sheet.update(f"A{i+2}:O{i+2}", [row])
+                    time.sleep(0.5)
+                except KeyError:
+                    row = [ user_id, 
+                            mongo_doc.get("username"),
+                            mongo_doc.get("name"),
+                            mongo_doc.get("first-seen"),
+                            mongo_doc.get("phone-number"),
+                            "",
+                            "USER HAS DELETED THIS FARM!"]
+                    self.sheet.update(f"A{i+2}:O{i+2}", [row])
+                    time.sleep(0.5)
+
             
     # def add_new_users(self, new_user: int = None):
     #     mongo_users = self.user_collection.distinct("_id")
