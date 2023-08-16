@@ -101,8 +101,12 @@ def get_province_keyboard():
 
 
 # Function to get the multi-choice keyboard for produce
+def signup_keyboard():
+    keyboard = [['✍️ ثبت نام']]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True ,one_time_keyboard=True)
+
 def start_keyboard():
-    keyboard = [['✍️ ثبت نام'], ['📤 دعوت از دیگران'], ['🖼 مشاهده باغ ها', '➕ اضافه کردن باغ'],  ['🗑 حذف باغ ها', '✏️ ویرایش باغ ها'], ['🌦 درخواست اطلاعات هواشناسی']]
+    keyboard = [['✍️ ثبت نام'], ['📤 دعوت از دیگران'], ['✅ ارسال فیش پرداخت', '💰 پرداخت'], ['🖼 مشاهده باغ ها', '➕ اضافه کردن باغ'],  ['🗑 حذف باغ ها', '✏️ ویرایش باغ ها'], ['🌦 درخواست اطلاعات هواشناسی']]
     return ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
 
 def get_product_keyboard():
