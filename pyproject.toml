@@ -8,7 +8,7 @@ packages = [{include = "telegram_bot"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-python-telegram-bot = {version = "13.7.0", extras = ["socks"]}
+python-telegram-bot = "^20.5"
 geopandas = "^0.13.2"
 pysocks = "^1.7.1"
 openpyxl = "^3.1.2"
