@@ -5,6 +5,7 @@ import time
 import logging
 from logging.handlers import RotatingFileHandler
 import warnings
+from datetime import datetime
 
 warnings.filterwarnings("ignore", category=UserWarning)
 # Enable logging
@@ -42,6 +43,7 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         self.db = self.client["agriweathBot"]
         self.user_collection = self.db["newUserCollection"]
         self.token_collection = self.db["tokenCollection"]
+        self.bot_collection = self.db["botCollection"]
 
     def user_exists_in_sheet(self, user_id):
         rows = [row for row in self.sheet_values[1:] if int(row[0])==user_id]
@@ -351,16 +353,20 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                 self.num_rows += 1
                 time.sleep(0.5)
     
-    def update_stats_sheet(self):
+    def update_stats_sheet(self, date: str = datetime.now().strftime("%Y-%m-%d %H:%M")):
+        num_weather_requests = len(list(self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'request weather', 'timestamp': {'$gte': date}}
+        )))
         farm_stats = self.farm_stats()
         row = [
             self.num_users(),
             self.num_registered(),
             farm_stats["users_w_farm"],
             farm_stats["num_farms"],
-            farm_stats["farms_w_loc"]
+            farm_stats["farms_w_loc"],
+            num_weather_requests
         ]
-        self.stats_sheet.update(f"A2:E2", [row])
+        self.stats_sheet.update(f"A2:F2", [row])
         time.sleep(0.5)
 
     def update_invites_sheet(self):
@@ -372,6 +378,7 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
 
 
 def main():
+    date = datetime.now().strftime("%Y%m%d")
     sheet = Sheet()
     logger.info("Finished initializing")
     mongo_users = sheet.user_collection.distinct("_id")
@@ -379,7 +386,7 @@ def main():
     logger.info(f"sheet users: {len(set([int(row[0]) for row in sheet.sheet_values[1:]]))}")
     sheet.update_invites_sheet()
     logger.info("Finished updating invites sheet")
-    sheet.update_stats_sheet()
+    sheet.update_stats_sheet(date=date)
     logger.info("Finished updating stats sheet")
     for user in mongo_users:
         mongo_doc = sheet.user_collection.find_one( {"_id": user} )
