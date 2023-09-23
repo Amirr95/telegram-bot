@@ -30,13 +30,18 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
     def __init__(self):
         self.auth = ".gspread/sheet.json"
         self.sheet_name = "database"
-        self.sheet = gspread.service_account(self.auth).open(self.sheet_name).sheet1
+        self.worksheet = gspread.service_account(self.auth).open(self.sheet_name)
+        self.sheet = self.worksheet.sheet1
+        self.stats_sheet = self.worksheet.worksheet("stats")
+        self.invite_sheet = self.worksheet.worksheet("invites")
         self.sheet_values = self.sheet.get_all_values()
         self.num_rows = len(self.sheet_values)
 
         self.client = pymongo.MongoClient(os.environ["MONGODB_URI"])
+        self.required_fields = ["name", "phone-number"]
         self.db = self.client["agriweathBot"]
         self.user_collection = self.db["newUserCollection"]
+        self.token_collection = self.db["tokenCollection"]
 
     def user_exists_in_sheet(self, user_id):
         rows = [row for row in self.sheet_values[1:] if int(row[0])==user_id]
@@ -46,6 +51,75 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         else:
             return True
     
+    def check_if_user_is_registered(self, user_id: int):
+        document = self.user_collection.find_one( {"_id": user_id} )
+        if all(key in document for key in self.required_fields):
+            return True
+        else:
+            return False
+    def num_users(self) -> int:
+        return len(self.user_collection.distinct("_id"))
+    
+    def num_registered(self) -> int:
+        users = self.user_collection.distinct("_id")
+        num = 0
+        for user in users:
+            if self.check_if_user_is_registered(user):
+                num += 1
+        return num
+    
+    def num_invites(self) -> list:
+        """returns a list of dicts with keys: 'owner' and 'used_by_combined'"""
+        pipeline = [
+    {
+        "$group": {
+            "_id": "$owner",
+            "used_by": {"$push": "$used-by"}
+        }
+    },
+    {
+        "$unwind": "$used_by"
+    },
+    {
+        "$group": {
+            "_id": "$_id",
+            "used_by_combined": {"$addToSet": "$used_by"}
+        }
+    },
+    {
+        "$project": {
+            "_id": 0,
+            "owner": "$_id",
+            "used_by_combined": 1
+        }
+    }
+]
+        res = list(self.token_collection.aggregate(pipeline))
+        for item in res:
+            item['used_by_combined'] = [user for array in item["used_by_combined"] for user in array]
+        output = []
+        for item in res:
+            if item["used_by_combined"] != []:
+                username = self.user_collection.find_one({"_id": item["owner"]})["username"]
+                output.append({'owner': item["owner"],"username": username, "invites": len(item["used_by_combined"])})
+        return output
+
+
+    def farm_stats(self):
+        users = self.user_collection.distinct("_id")
+        users_w_farm, num_farms, farms_w_loc, num_blocks = 0, 0, 0, 0 # users with farms, total number of farms, farms with location
+        for user in users:
+
+            user_doc = self.user_collection.find_one({"_id": user})
+            farms = user_doc.get("farms", None)
+            if farms:
+                users_w_farm += 1
+                for farm in farms:
+                    num_farms += 1
+                    if farms[farm]["location"].get("longitude"):
+                        farms_w_loc += 1
+        return {'users_w_farm': users_w_farm, "num_farms": num_farms, "farms_w_loc": farms_w_loc}
+
 
     def add_missing_row(self, user_id: int, mongo_doc: dict = None, farm_name: str = None, ):
         """
@@ -276,6 +350,26 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                 self.sheet.insert_row(row, self.num_rows + 1)
                 self.num_rows += 1
                 time.sleep(0.5)
+    
+    def update_stats_sheet(self):
+        farm_stats = self.farm_stats()
+        row = [
+            self.num_users(),
+            self.num_registered(),
+            farm_stats["users_w_farm"],
+            farm_stats["num_farms"],
+            farm_stats["farms_w_loc"]
+        ]
+        self.stats_sheet.update(f"A2:E2", [row])
+        time.sleep(0.5)
+
+    def update_invites_sheet(self):
+        invites = self.num_invites()
+        for i, item in enumerate(invites):
+            row = [item["owner"], item["username"], item["invites"]]
+            self.invite_sheet.update(f"A{i+2}:C{i+2}", [row])
+            time.sleep(0.5)
+
 
 def main():
     sheet = Sheet()
@@ -283,6 +377,10 @@ def main():
     mongo_users = sheet.user_collection.distinct("_id")
     logger.info(f"mongo users: {len(mongo_users)}")
     logger.info(f"sheet users: {len(set([int(row[0]) for row in sheet.sheet_values[1:]]))}")
+    sheet.update_invites_sheet()
+    logger.info("Finished updating invites sheet")
+    sheet.update_stats_sheet()
+    logger.info("Finished updating stats sheet")
     for user in mongo_users:
         mongo_doc = sheet.user_collection.find_one( {"_id": user} )
         if not sheet.user_exists_in_sheet(user):
