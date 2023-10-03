@@ -369,14 +369,12 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         last_date_first_seen = last_date_dt.strftime("%Y-%m-%d %H:%M")
         date_first_seen = date_dt.strftime("%Y-%m-%d %H:%M")
 
-        logger.info(f"last date: {last_date}")
         ### date + KPIs -> 19
         weather_requests = self.bot_collection.find(
             {'type': 'activity logs', 'user_activity': 'request weather', 'timestamp': {'$gte': last_date, '$lte': date}}
         )
         num_weather_requests = len(list(weather_requests))
         num_weather_requests_unique = len(weather_requests.distinct("userID"))
-        logger.info(f"weather req: {num_weather_requests}")
         sp_requests = self.bot_collection.find(
             {'type': 'activity logs', 'user_activity': 'request sp', 'timestamp': {'$gte': last_date, '$lte': date}}
         )
@@ -404,7 +402,6 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         num_enter_name = len(list(self.bot_collection.find(
             {'type': 'activity logs', 'user_activity': 'entered name', 'timestamp': {'$gte': last_date, '$lte': date}}
         )))
-        logger.info(f"name: {num_enter_name}")
         ####
         start_add = self.bot_collection.find(
             {'type': 'activity logs', 'user_activity': 'start add farm', 'timestamp': {'$gte': last_date, '$lte': date}}
@@ -488,8 +485,7 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
             farm_stats["harvest_off"],
             farm_stats["harvest_on"],
         ]
-        logger.info(f"\nrow: {row}\n")
-        self.stats_sheet.update(f"A{self.num_stat_rows+1}:Y{self.num_stat_rows+1}", [row])
+        self.stats_sheet.update(f"A{self.num_stat_rows+1}:AN{self.num_stat_rows+1}", [row])
         time.sleep(0.5)
 
     def update_invites_sheet(self):
