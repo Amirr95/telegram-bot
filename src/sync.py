@@ -127,7 +127,7 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                     if farms[farm].get("harvest-off")==False:
                         harvest_on += 1
         return {'users_w_farm': users_w_farm, "num_farms": num_farms, "farms_w_loc": farms_w_loc,
-                'harvest_off':harvest_off, 'harvest-on': harvest_on}
+                'harvest_off':harvest_off, 'harvest_on': harvest_on}
 
 
     def add_missing_row(self, user_id: int, mongo_doc: dict = None, farm_name: str = None, ):
