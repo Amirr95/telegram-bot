@@ -36,7 +36,9 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         self.stats_sheet = self.worksheet.worksheet("stats")
         self.invite_sheet = self.worksheet.worksheet("invites")
         self.sheet_values = self.sheet.get_all_values()
+        self.stat_values = self.stats_sheet.get_all_values()
         self.num_rows = len(self.sheet_values)
+        self.num_stat_rows = len(self.stat_values)
 
         self.client = pymongo.MongoClient(os.environ["MONGODB_URI"])
         self.required_fields = ["name", "phone-number"]
@@ -109,7 +111,7 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
 
     def farm_stats(self):
         users = self.user_collection.distinct("_id")
-        users_w_farm, num_farms, farms_w_loc, num_blocks = 0, 0, 0, 0 # users with farms, total number of farms, farms with location
+        users_w_farm, num_farms, farms_w_loc, harvest_off, harvest_on = 0, 0, 0, 0, 0 # users with farms, total number of farms, farms with location
         for user in users:
 
             user_doc = self.user_collection.find_one({"_id": user})
@@ -120,7 +122,12 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                     num_farms += 1
                     if farms[farm]["location"].get("longitude"):
                         farms_w_loc += 1
-        return {'users_w_farm': users_w_farm, "num_farms": num_farms, "farms_w_loc": farms_w_loc}
+                    if farms[farm].get("harvest-off"):
+                        harvest_off += 1
+                    if farms[farm].get("harvest-off")==False:
+                        harvest_on += 1
+        return {'users_w_farm': users_w_farm, "num_farms": num_farms, "farms_w_loc": farms_w_loc,
+                'harvest_off':harvest_off, 'harvest-on': harvest_on}
 
 
     def add_missing_row(self, user_id: int, mongo_doc: dict = None, farm_name: str = None, ):
@@ -353,24 +360,145 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                 self.num_rows += 1
                 time.sleep(0.5)
     
-    def update_stats_sheet(self, date: str = datetime.now().strftime("%Y-%m-%d %H:%M")):
-        num_weather_requests = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'request weather', 'timestamp': {'$gte': date}}
+    def update_stats_sheet(self, date: str = datetime.now().strftime("%Y%m%d %H:%M")): # "%Y-%m-%d %H:%M"
+        last_date = self.stat_values[-1][0]
+
+        last_date_dt = datetime.strptime(last_date, "%Y%m%d %H:%M")
+        date_dt = datetime.strptime(date, "%Y%m%d %H:%M")
+
+        last_date_first_seen = last_date_dt.strftime("%Y-%m-%d %H:%M")
+        date_first_seen = date_dt.strftime("%Y-%m-%d %H:%M")
+
+        logger.info(f"last date: {last_date}")
+        ### date + KPIs -> 19
+        weather_requests = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'request weather', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )
+        num_weather_requests = len(list(weather_requests))
+        num_weather_requests_unique = len(weather_requests.distinct("userID"))
+        logger.info(f"weather req: {num_weather_requests}")
+        sp_requests = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'request sp', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )
+        num_sp_requests = len(list(sp_requests))
+        num_sp_requests_unique = len(sp_requests.distinct("userID"))
+        chose_day = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'chose advice date', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )
+        num_chose_day = len(list(chose_day))
+        num_chose_day_unique = len(chose_day.distinct("userID"))
+        chose_sp_day = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'chose sp-advice date', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )
+        num_chose_sp_day = len(list(chose_sp_day))
+        num_chose_sp_day_unique = len(chose_sp_day.distinct("userID"))
+        ####
+        start_register = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'start register', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )
+        num_start_register = len(list(start_register))
+        num_start_register_unique = len(start_register.distinct("userID"))
+        num_enter_phone = len(list(self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'entered phone', 'timestamp': {'$gte': last_date, '$lte': date}}
         )))
+        num_enter_name = len(list(self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'entered name', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )))
+        logger.info(f"name: {num_enter_name}")
+        ####
+        start_add = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'start add farm', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )
+        num_start_add = len(list(start_add))
+        num_start_add_unique = len(start_add.distinct("userID"))
+        num_chose_name = len(list(self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'chose name', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )))
+        num_chose_product = len(list(self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'chose product', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )))
+        num_chose_province = len(list(self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'chose province', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )))
+        num_chose_city = len(list(self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'entered city', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )))        
+        num_chose_village = len(list(self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'entered villagee', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )))
+        num_chose_area = len(list(self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'entered area', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )))
+        num_location_success = len(list(self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'sent location', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )))
+        num_location_map = len(list(self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'chose to send location from map', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )))
+        num_location_fail = len(list(self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'finish add farm - no location', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )))
+        num_location_link = len(list(self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'sent location link', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )))
+        invites = self.user_collection.find(
+            {'first-seen': {'$gte': last_date_first_seen, '$lte': date_first_seen}, 'invited-by': {'$exists': True}}
+        )
+        join_with_invite = len(list(invites))
+        inviters = invites.distinct("invited-by")
+
+        invite_btn = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'chose invite-link menu option', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )
+        num_invite_btn = len(list(invite_btn))
+        num_invite_btn_unique = len(invite_btn.distinct("userID"))
+
+        vip_btn = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'navigated to payment view', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )
+        num_vip_btn = len(list(vip_btn))
+        num_vip_btn_unique = len(vip_btn.distinct("userID"))
+
+        contact_btn = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'viewed contact us message', 'timestamp': {'$gte': last_date, '$lte': date}}
+        )
+        num_contact_btn = len(list(contact_btn))
+        num_contact_btn_unique = len(contact_btn.distinct("userID"))
+
         farm_stats = self.farm_stats()
         row = [
+            date,
             self.num_users(),
             self.num_registered(),
             farm_stats["users_w_farm"],
             farm_stats["num_farms"],
             farm_stats["farms_w_loc"],
-            num_weather_requests
+            num_weather_requests, num_weather_requests_unique,
+            num_sp_requests, num_sp_requests_unique,
+            num_chose_day, num_chose_day_unique,
+            num_chose_sp_day, num_chose_sp_day_unique,
+            num_start_register, num_start_register_unique, num_enter_phone, num_chose_name,
+            num_start_add, num_start_add_unique, num_enter_name, num_chose_product, num_chose_province, num_chose_city, num_chose_village, num_chose_area,
+            num_location_fail, num_location_link, num_location_map, num_location_success,
+            join_with_invite,
+            inviters,
+            num_invite_btn, num_invite_btn_unique,
+            num_vip_btn, num_vip_btn_unique,
+            num_contact_btn, num_contact_btn_unique,
+            farm_stats["harvest_off"],
+            farm_stats["harvest_on"],
         ]
-        self.stats_sheet.update(f"A2:F2", [row])
+        logger.info(f"\nrow: {row}\n")
+        self.stats_sheet.update(f"A{self.num_stat_rows+1}:Y{self.num_stat_rows+1}", [row])
         time.sleep(0.5)
 
     def update_invites_sheet(self):
         invites = self.num_invites()
+        self.invite_sheet.delete_rows(2, self.invite_sheet.row_count - 1)
+        empty_row = ["", "", ""]
+        for i in range(len(invites) + 10):
+            self.invite_sheet.insert_row(empty_row, 2)
+            time.sleep(0.5)
         for i, item in enumerate(invites):
             row = [item["owner"], item["username"], item["invites"]]
             self.invite_sheet.update(f"A{i+2}:C{i+2}", [row])
@@ -378,16 +506,18 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
 
 
 def main():
-    date = datetime.now().strftime("%Y%m%d")
+    date = datetime.now().strftime("%Y%m%d %H:%M")
     sheet = Sheet()
     logger.info("Finished initializing")
     mongo_users = sheet.user_collection.distinct("_id")
     logger.info(f"mongo users: {len(mongo_users)}")
     logger.info(f"sheet users: {len(set([int(row[0]) for row in sheet.sheet_values[1:]]))}")
-    sheet.update_invites_sheet()
-    logger.info("Finished updating invites sheet")
+    logger.info("start updating stats sheet")
+    logger.info(f"date: {date}")
     sheet.update_stats_sheet(date=date)
     logger.info("Finished updating stats sheet")
+    sheet.update_invites_sheet()
+    logger.info("Finished updating invites sheet")
     for user in mongo_users:
         mongo_doc = sheet.user_collection.find_one( {"_id": user} )
         if not sheet.user_exists_in_sheet(user):
