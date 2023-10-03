@@ -443,6 +443,8 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         )
         join_with_invite = len(list(invites))
         inviters = invites.distinct("invited-by")
+        inviters = [str(person) for person in inviters]
+        inviters = ', '.join(inviters)
 
         invite_btn = self.bot_collection.find(
             {'type': 'activity logs', 'user_activity': 'chose invite-link menu option', 'timestamp': {'$gte': last_date, '$lte': date}}
