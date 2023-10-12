@@ -371,75 +371,75 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
 
         ### date + KPIs -> 19
         weather_requests = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'request weather', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'request weather', 'timestamp': {'$lte': date}}
         )
         num_weather_requests = len(list(weather_requests))
         num_weather_requests_unique = len(weather_requests.distinct("userID"))
         sp_requests = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'request sp', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'request sp', 'timestamp': {'$lte': date}}
         )
         num_sp_requests = len(list(sp_requests))
         num_sp_requests_unique = len(sp_requests.distinct("userID"))
         chose_day = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'chose advice date', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'chose advice date', 'timestamp': {'$lte': date}}
         )
         num_chose_day = len(list(chose_day))
         num_chose_day_unique = len(chose_day.distinct("userID"))
         chose_sp_day = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'chose sp-advice date', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'chose sp-advice date', 'timestamp': {'$lte': date}}
         )
         num_chose_sp_day = len(list(chose_sp_day))
         num_chose_sp_day_unique = len(chose_sp_day.distinct("userID"))
         ####
         start_register = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'start register', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'start register', 'timestamp': {'$lte': date}}
         )
         num_start_register = len(list(start_register))
         num_start_register_unique = len(start_register.distinct("userID"))
         num_enter_phone = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'entered phone', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'entered phone', 'timestamp': {'$lte': date}}
         )))
         num_enter_name = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'entered name', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'entered name', 'timestamp': {'$lte': date}}
         )))
         ####
         start_add = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'start add farm', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'start add farm', 'timestamp': {'$lte': date}}
         )
         num_start_add = len(list(start_add))
         num_start_add_unique = len(start_add.distinct("userID"))
         num_chose_name = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'chose name', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'chose name', 'timestamp': {'$lte': date}}
         )))
         num_chose_product = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'chose product', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'chose product', 'timestamp': {'$lte': date}}
         )))
         num_chose_province = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'chose province', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'chose province', 'timestamp': {'$lte': date}}
         )))
         num_chose_city = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'entered city', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'entered city', 'timestamp': {'$lte': date}}
         )))        
         num_chose_village = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'entered villagee', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'entered villagee', 'timestamp': {'$lte': date}}
         )))
         num_chose_area = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'entered area', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'entered area', 'timestamp': {'$lte': date}}
         )))
         num_location_success = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'sent location', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'sent location', 'timestamp': {'$lte': date}}
         )))
         num_location_map = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'chose to send location from map', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'chose to send location from map', 'timestamp': {'$lte': date}}
         )))
         num_location_fail = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'finish add farm - no location', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'finish add farm - no location', 'timestamp': {'$lte': date}}
         )))
         num_location_link = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'sent location link', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'sent location link', 'timestamp': {'$lte': date}}
         )))
         invites = self.user_collection.find(
-            {'first-seen': {'$gte': last_date_first_seen, '$lte': date_first_seen}, 'invited-by': {'$exists': True}}
+            {'first-seen': {'$lte': date_first_seen}, 'invited-by': {'$exists': True}}
         )
         join_with_invite = len(list(invites))
         inviters = invites.distinct("invited-by")
@@ -447,19 +447,19 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         inviters = ', '.join(inviters)
 
         invite_btn = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'chose invite-link menu option', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'chose invite-link menu option', 'timestamp': {'$lte': date}}
         )
         num_invite_btn = len(list(invite_btn))
         num_invite_btn_unique = len(invite_btn.distinct("userID"))
 
         vip_btn = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'navigated to payment view', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'navigated to payment view', 'timestamp': {'$lte': date}}
         )
         num_vip_btn = len(list(vip_btn))
         num_vip_btn_unique = len(vip_btn.distinct("userID"))
 
         contact_btn = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'viewed contact us message', 'timestamp': {'$gte': last_date, '$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'viewed contact us message', 'timestamp': {'$lte': date}}
         )
         num_contact_btn = len(list(contact_btn))
         num_contact_btn_unique = len(contact_btn.distinct("userID"))
