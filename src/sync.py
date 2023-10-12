@@ -496,11 +496,11 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         empty_row = ["", "", ""]
         for i in range(len(invites) + 10):
             self.invite_sheet.insert_row(empty_row, 2)
-            time.sleep(0.5)
+            time.sleep(1)
         for i, item in enumerate(invites):
             row = [item["owner"], item["username"], item["invites"]]
             self.invite_sheet.update(f"A{i+2}:C{i+2}", [row])
-            time.sleep(0.5)
+            time.sleep(1)
 
 
 def main():
