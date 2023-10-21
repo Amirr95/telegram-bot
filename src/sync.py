@@ -462,6 +462,18 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         num_vip_btn = len(list(vip_btn))
         num_vip_btn_unique = len(vip_btn.distinct("userID"))
 
+        payment_link = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'chose payment from menu', 'timestamp': {'$lte': date}}
+        )
+        num_payment_link = len(list(payment_link))
+        num_payment_link_unique = len(payment_link.distinct("userID"))
+
+        verify_payment = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'chose ersal-e fish', 'timestamp': {'$lte': date}}
+        )
+        num_verify_payment = len(list(verify_payment))
+        num_verify_payment_unique = len(verify_payment.distinct("userID"))
+
         contact_btn = self.bot_collection.find(
             {'type': 'activity logs', 'user_activity': 'viewed contact us message', 'timestamp': {'$lte': date}}
         )
@@ -488,6 +500,8 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
             inviters,
             num_invite_btn, num_invite_btn_unique,
             num_vip_btn, num_vip_btn_unique,
+            num_payment_link, num_payment_link_unique,
+            num_verify_payment, num_verify_payment_unique, 
             num_contact_btn, num_contact_btn_unique,
             farm_stats["harvest_off"],
             farm_stats["harvest_on"],
@@ -504,7 +518,7 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
             time.sleep(1)
         for i, item in enumerate(invites):
             row = [item["owner"], item["username"], item["invites"]]
-            self.invite_sheet.update(f"A{i+2}:C{i+2}", [row])
+            self.invite_sheet.update(f"A{i+2}:AS{i+2}", [row])
             time.sleep(1)
 
 
