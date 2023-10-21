@@ -72,6 +72,10 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                 num += 1
         return num
     
+    def num_blocks(self) -> int:
+        blocked_users = self.user_collection.count_documents({"blocked": True})
+        return blocked_users
+    
     def num_invites(self) -> list:
         """returns a list of dicts with keys: 'owner' and 'used_by_combined'"""
         pipeline = [
@@ -469,6 +473,7 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
             date,
             self.num_users(),
             self.num_registered(),
+            self.num_blocks(),
             farm_stats["users_w_farm"],
             farm_stats["num_farms"],
             farm_stats["farms_w_loc"],
