@@ -506,7 +506,7 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
             farm_stats["harvest_off"],
             farm_stats["harvest_on"],
         ]
-        self.stats_sheet.update(f"A{self.num_stat_rows+1}:AN{self.num_stat_rows+1}", [row])
+        self.stats_sheet.update(f"A{self.num_stat_rows+1}:AS{self.num_stat_rows+1}", [row])
         time.sleep(0.5)
 
     def update_invites_sheet(self):
