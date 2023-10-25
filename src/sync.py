@@ -47,38 +47,108 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         self.token_collection = self.db["tokenCollection"]
         self.bot_collection = self.db["botCollection"]
 
-    def user_exists_in_sheet(self, user_id):
-        rows = [row for row in self.sheet_values[1:] if int(row[0])==user_id]
-        if rows==[]:
-            logger.info(f"user {user_id} doesn't exist in the sheet")
-            return False
-        else:
-            return True
-    
-    def check_if_user_is_registered(self, user_id: int):
-        document = self.user_collection.find_one( {"_id": user_id} )
-        if all(key in document for key in self.required_fields):
-            return True
-        else:
-            return False
-    def num_users(self) -> int:
-        return len(self.user_collection.distinct("_id"))
-    
-    def num_registered(self) -> int:
-        users = self.user_collection.distinct("_id")
-        num = 0
-        for user in users:
-            if self.check_if_user_is_registered(user):
-                num += 1
-        return num
-    
-    def num_blocks(self) -> int:
-        blocked_users = self.user_collection.count_documents({"blocked": True})
-        return blocked_users
-    
-    def num_invites(self) -> list:
-        """returns a list of dicts with keys: 'owner' and 'used_by_combined'"""
-        pipeline = [
+        self.num_users_w_farms_pipeline = [
+    {
+        '$match': {
+            'farms': {
+                '$exists': True
+            }
+        }
+    }, {
+        '$count': 'string'
+    }
+]
+        self.users_w_location_pipeline = [
+                {"$match": {"$and": [
+                        { "farms": { "$exists": True } },
+                        { "farms": { "$ne": None } },
+                        { "farms": { "$ne": {} } }
+                        ]
+                    }
+                },
+                {"$addFields": {
+                    "farmsArray": { "$objectToArray": "$farms" }
+                    }
+                },
+                {"$redact": {
+                    "$cond": {
+                        "if": {
+                        "$anyElementTrue": {
+                            "$map": {
+                            "input": "$farmsArray",
+                            "as": "farm",
+                            "in": {
+                                "$and": [
+                                { "$ne": ["$$farm.v.location.latitude", None] },
+                                { "$ne": ["$$farm.v.location.longitude", None] }
+                                ]
+                            }
+                            }
+                        }
+                        },
+                        "then": "$$KEEP",
+                        "else": "$$PRUNE"
+                    }
+                    }
+                },
+                {"$project": {
+                    "_id": 1
+                    }
+                }
+                ]
+        self.num_farms_pipeline = [
+    {
+        '$project': {
+            'farms': {
+                '$objectToArray': '$farms'
+            }
+        }
+    }, {
+        '$unwind': '$farms'
+    }, {
+        '$group': {
+            '_id': None, 
+            'total_farms': {
+                '$sum': 1
+            }
+        }
+    }
+]
+        self.pre_harvest_farms_pipeline = [
+    {
+        '$project': {
+            'farms': {
+                '$objectToArray': '$farms'
+            }
+        }
+    }, {
+        '$unwind': '$farms'
+    }, {
+        '$match': {
+            'farms.v.harvest-off': False
+        }
+    }, {
+        '$count': 'string'
+    }
+]
+        self.post_harvest_farms_pipeline = [
+    {
+        '$project': {
+            'farms': {
+                '$objectToArray': '$farms'
+            }
+        }
+    }, {
+        '$unwind': '$farms'
+    }, {
+        '$match': {
+            'farms.v.harvest-off': True
+        }
+    }, {
+        '$count': 'string'
+    }
+]
+        self.invites_pipeline = [
     {
         "$group": {
             "_id": "$owner",
@@ -101,8 +171,71 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
             "used_by_combined": 1
         }
     }
-]
-        res = list(self.token_collection.aggregate(pipeline))
+    ]   
+    
+    def user_exists_in_sheet(self, user_id):
+        rows = [row for row in self.sheet_values[1:] if int(row[0])==user_id]
+        if rows==[]:
+            logger.info(f"user {user_id} doesn't exist in the sheet")
+            return False
+        else:
+            return True
+    
+    def check_if_user_is_registered(self, user_id: int):
+        document = self.user_collection.find_one( {"_id": user_id} )
+        if all(key in document for key in self.required_fields):
+            return True
+        else:
+            return False
+    
+    def num_users(self) -> int:
+        return len(self.user_collection.distinct("_id"))
+    
+    def num_registered(self) -> int:
+        users = self.user_collection.distinct("_id")
+        num = 0
+        for user in users:
+            if self.check_if_user_is_registered(user):
+                num += 1
+        return num
+    
+    def num_blocks(self) -> int:
+        blocked_users = self.user_collection.count_documents({"blocked": True})
+        return blocked_users
+    
+    def num_users_with_farms(self) -> int:
+        return self.user_collection.aggregate(self.num_users_w_farms_pipeline).next()["string"]
+    
+    def num_farms(self) -> int:
+        return self.user_collection.aggregate(self.num_farms_pipeline).next()["total_farms"]
+    
+    def num_pre_harvest_farms(self) -> int:
+        return self.user_collection.aggregate(self.pre_harvest_farms_pipeline).next()["string"]
+    
+    def num_post_harvest_farms(self) -> int:
+        return self.user_collection.aggregate(self.post_harvest_farms_pipeline).next()["string"]
+    
+    def get_farms(self, user_id: int) -> dict:
+        """Use after verifynig user has at least one farm (so it doesn't return None)"""
+        user_doc = self.user_collection.find_one( {"_id": user_id} )
+        return user_doc.get("farms")
+
+    def get_users_with_location(self) -> dict:
+        """Return a dictionary of users who have atleast one farm with known location and the 
+        number of such farms belonging to the user"""
+        cursor = self.user_collection.aggregate(self.users_w_location_pipeline) # users who have atleast one farm with no location
+        users = [user["_id"] for user in cursor]
+        out = dict()
+        for user in users:
+            farms = self.get_farms(user)
+            for farm in farms:
+                if farms[farm]["location"]["longitude"]:
+                    out[user] = out.get(user, 0) + 1
+        return out
+
+    def num_invites(self) -> list:
+        """returns a list of dicts with keys: 'owner' and 'used_by_combined'"""
+        res = list(self.token_collection.aggregate(self.invites_pipeline))
         for item in res:
             item['used_by_combined'] = [user for array in item["used_by_combined"] for user in array]
         output = []
@@ -216,9 +349,6 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                 logger.info(f"user {user_id} was added to sheet with no farms")
                 time.sleep(0.5)
 
-    def delete_farm_name_from_sheet(self, user_id, ):
-        pass
-
     def update_existing_rows(self):
         for i, row in enumerate(self.sheet_values[1:]):
             user_id = int(row[0])
@@ -276,41 +406,6 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                             "USER HAS DELETED THIS FARM!"]
                     self.sheet.update(f"A{i+2}:P{i+2}", [row])
                     time.sleep(0.5)
-
-            
-    # def add_new_users(self, new_user: int = None):
-    #     mongo_users = self.user_collection.distinct("_id")
-    #     if not new_user:
-    #         if self.num_rows == 0:
-    #             new_users = mongo_users
-    #             header_row = [  "UserID",
-    #                             "Username",
-    #                             "Name",
-    #                             "First Seen",
-    #                             "Phone",
-    #                             "Farm Name",
-    #                             "Product",
-    #                             "Province",
-    #                             "City",
-    #                             "Village",
-    #                             "Longitude",
-    #                             "Latitude",
-    #                             "Location Method",
-    #                             "Blocked"]
-    #             self.sheet.insert_row(header_row, index=0)
-    #             self.num_rows += 1
-    #             time.sleep(0.5)
-    #         else:
-    #             try:
-    #                 sheet_users = set([int(row[0]) for row in self.sheet_values[1:]])
-    #                 new_users = [user for user in mongo_users if user not in sheet_users]
-    #             except ValueError:
-    #                 pass
-    #                 # logger.error("row[0] probably couldn't become an INT.")
-    #         for user in new_users:
-    #             self.add_row_to_sheet(user)
-    #     else:
-    #         self.add_row_to_sheet(new_user)
 
     def find_missing_farms(self, user_id, mongo_doc):
         mongo_farms = mongo_doc.get("farms", None)
@@ -375,75 +470,78 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
 
         ### date + KPIs -> 19
         weather_requests = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'request weather', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'request weather', 'timestamp': {'$lte': date, '$gte': last_date}}
         )
         num_weather_requests = len(list(weather_requests))
         num_weather_requests_unique = len(weather_requests.distinct("userID"))
         sp_requests = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'request sp', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'request sp', 'timestamp': {'$lte': date, '$gte': last_date}}
         )
         num_sp_requests = len(list(sp_requests))
         num_sp_requests_unique = len(sp_requests.distinct("userID"))
         chose_day = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'chose advice date', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'chose advice date', 'timestamp': {'$lte': date, '$gte': last_date}}
         )
         num_chose_day = len(list(chose_day))
         num_chose_day_unique = len(chose_day.distinct("userID"))
         chose_sp_day = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'chose sp-advice date', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'chose sp-advice date', 'timestamp': {'$lte': date, '$gte': last_date}}
         )
         num_chose_sp_day = len(list(chose_sp_day))
         num_chose_sp_day_unique = len(chose_sp_day.distinct("userID"))
         ####
         start_register = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'start register', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'start register', 'timestamp': {'$lte': date, '$gte': last_date}}
         )
         num_start_register = len(list(start_register))
         num_start_register_unique = len(start_register.distinct("userID"))
         num_enter_phone = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'entered phone', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'entered phone', 'timestamp': {'$lte': date, '$gte': last_date}}
         )))
         num_enter_name = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'entered name', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'entered name', 'timestamp': {'$lte': date, '$gte': last_date}}
         )))
         ####
         start_add = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'start add farm', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'start add farm', 'timestamp': {'$lte': date, '$gte': last_date}}
         )
         num_start_add = len(list(start_add))
         num_start_add_unique = len(start_add.distinct("userID"))
         num_chose_name = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'chose name', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'chose name', 'timestamp': {'$lte': date, '$gte': last_date}}
         )))
         num_chose_product = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'chose product', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'chose product', 'timestamp': {'$lte': date, '$gte': last_date}}
         )))
         num_chose_province = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'chose province', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'chose province', 'timestamp': {'$lte': date, '$gte': last_date}}
         )))
         num_chose_city = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'entered city', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'entered city', 'timestamp': {'$lte': date, '$gte': last_date}}
         )))        
         num_chose_village = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'entered villagee', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'entered villagee', 'timestamp': {'$lte': date, '$gte': last_date}}
         )))
         num_chose_area = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'entered area', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'entered area', 'timestamp': {'$lte': date, '$gte': last_date}}
         )))
-        num_location_success = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'sent location', 'timestamp': {'$lte': date}}
-        )))
+        location_success = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'sent location', 'timestamp': {'$lte': date, '$gte': last_date}}
+        )
+        num_location_success = len(list(location_success))
+        num_location_success_unique = len(location_success.distinct("userID"))
+
         num_location_map = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'chose to send location from map', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'chose to send location from map', 'timestamp': {'$lte': date, '$gte': last_date}}
         )))
         num_location_fail = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'finish add farm - no location', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'finish add farm - no location', 'timestamp': {'$lte': date, '$gte': last_date}}
         )))
         num_location_link = len(list(self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'sent location link', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'sent location link', 'timestamp': {'$lte': date, '$gte': last_date}}
         )))
         invites = self.user_collection.find(
-            {'first-seen': {'$lte': date_first_seen}, 'invited-by': {'$exists': True}}
+            {'first-seen': {'$lte': date_first_seen, '$gte': last_date_first_seen}, 'invited-by': {'$exists': True}}
         )
         join_with_invite = len(list(invites))
         inviters = invites.distinct("invited-by")
@@ -451,51 +549,58 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         inviters = ', '.join(inviters)
 
         invite_btn = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'chose invite-link menu option', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'chose invite-link menu option', 'timestamp': {'$lte': date, '$gte': last_date}}
         )
         num_invite_btn = len(list(invite_btn))
         num_invite_btn_unique = len(invite_btn.distinct("userID"))
 
         vip_btn = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'navigated to payment view', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'navigated to payment view', 'timestamp': {'$lte': date, '$gte': last_date}}
         )
         num_vip_btn = len(list(vip_btn))
         num_vip_btn_unique = len(vip_btn.distinct("userID"))
 
         payment_link = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'chose payment from menu', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'chose payment from menu', 'timestamp': {'$lte': date, '$gte': last_date}}
         )
         num_payment_link = len(list(payment_link))
         num_payment_link_unique = len(payment_link.distinct("userID"))
 
         verify_payment = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'chose ersal-e fish', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'chose ersal-e fish', 'timestamp': {'$lte': date, '$gte': last_date}}
         )
         num_verify_payment = len(list(verify_payment))
         num_verify_payment_unique = len(verify_payment.distinct("userID"))
 
         contact_btn = self.bot_collection.find(
-            {'type': 'activity logs', 'user_activity': 'viewed contact us message', 'timestamp': {'$lte': date}}
+            {'type': 'activity logs', 'user_activity': 'viewed contact us message', 'timestamp': {'$lte': date, '$gte': last_date}}
         )
         num_contact_btn = len(list(contact_btn))
         num_contact_btn_unique = len(contact_btn.distinct("userID"))
 
-        farm_stats = self.farm_stats()
+        # farm_stats = self.farm_stats()
+        logger.info("Querying location information...")
+        location_info = self.get_users_with_location()
+        farms_w_location = 0
+        for user in location_info: farms_w_location += location_info[user]
+        users_w_location = len(location_info)
+        users_w_multi_location = len([user for user in location_info if location_info[user] > 1])
         row = [
             date,
             self.num_users(),
             self.num_registered(),
             self.num_blocks(),
-            farm_stats["users_w_farm"],
-            farm_stats["num_farms"],
-            farm_stats["farms_w_loc"],
+            self.num_users_with_farms(), # farm_stats["users_w_farm"],
+            self.num_farms(), # farm_stats["num_farms"],
+            farms_w_location,# farm_stats["farms_w_loc"],
+            users_w_location, users_w_multi_location,
             num_weather_requests, num_weather_requests_unique,
             num_sp_requests, num_sp_requests_unique,
             num_chose_day, num_chose_day_unique,
             num_chose_sp_day, num_chose_sp_day_unique,
             num_start_register, num_start_register_unique, num_enter_phone, num_chose_name,
             num_start_add, num_start_add_unique, num_enter_name, num_chose_product, num_chose_province, num_chose_city, num_chose_village, num_chose_area,
-            num_location_fail, num_location_link, num_location_map, num_location_success,
+            num_location_fail, num_location_link, num_location_map, num_location_success, num_location_success_unique,
             join_with_invite,
             inviters,
             num_invite_btn, num_invite_btn_unique,
@@ -503,10 +608,10 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
             num_payment_link, num_payment_link_unique,
             num_verify_payment, num_verify_payment_unique, 
             num_contact_btn, num_contact_btn_unique,
-            farm_stats["harvest_off"],
-            farm_stats["harvest_on"],
+            self.num_post_harvest_farms(), # farm_stats["harvest_off"],
+            self.num_pre_harvest_farms() #farm_stats["harvest_on"],
         ]
-        self.stats_sheet.update(f"A{self.num_stat_rows+1}:AS{self.num_stat_rows+1}", [row])
+        self.stats_sheet.update(f"A{self.num_stat_rows+1}:AV{self.num_stat_rows+1}", [row])
         time.sleep(0.5)
 
     def update_invites_sheet(self):
