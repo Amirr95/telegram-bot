@@ -540,6 +540,9 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         num_location_link = len(list(self.bot_collection.find(
             {'type': 'activity logs', 'user_activity': 'sent location link', 'timestamp': {'$lte': date, '$gte': last_date}}
         )))
+        num_valid_links = len(list(self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': "set a user's location", 'timestamp': {'$lte': date, '$gte': last_date}}
+        )))
         invites = self.user_collection.find(
             {'first-seen': {'$lte': date_first_seen, '$gte': last_date_first_seen}, 'invited-by': {'$exists': True}}
         )
@@ -600,7 +603,7 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
             num_chose_sp_day, num_chose_sp_day_unique,
             num_start_register, num_start_register_unique, num_enter_phone, num_chose_name,
             num_start_add, num_start_add_unique, num_enter_name, num_chose_product, num_chose_province, num_chose_city, num_chose_village, num_chose_area,
-            num_location_fail, num_location_link, num_location_map, num_location_success, num_location_success_unique,
+            num_location_fail, num_location_link, num_valid_links, num_location_map, num_location_success, num_location_success_unique,
             join_with_invite,
             inviters,
             num_invite_btn, num_invite_btn_unique,
@@ -611,7 +614,7 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
             self.num_post_harvest_farms(), # farm_stats["harvest_off"],
             self.num_pre_harvest_farms() #farm_stats["harvest_on"],
         ]
-        self.stats_sheet.update(f"A{self.num_stat_rows+1}:AV{self.num_stat_rows+1}", [row])
+        self.stats_sheet.update(f"A{self.num_stat_rows+1}:AW{self.num_stat_rows+1}", [row])
         time.sleep(0.5)
 
     def update_invites_sheet(self):
