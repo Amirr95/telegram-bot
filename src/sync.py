@@ -33,13 +33,14 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         self.auth = ".gspread/sheet.json"
         self.sheet_name = "database"
         self.worksheet = gspread.service_account(self.auth).open(self.sheet_name)
-        self.sheet = self.worksheet.sheet1
+        self.sheet = self.worksheet.worksheet("users")
         self.stats_sheet = self.worksheet.worksheet("stats")
         self.invite_sheet = self.worksheet.worksheet("invites")
         self.activity_sheet = self.worksheet.worksheet("user activity")
         self.sheet_values = self.sheet.get_all_values()
         self.stat_values = self.stats_sheet.get_all_values()
         self.activity_values = self.activity_sheet.get_all_values()
+        self.activity_sheet_col_idx = len(self.activity_values[0]) + 1
         self.num_rows = len(self.sheet_values)
         self.num_stat_rows = len(self.stat_values)
 
@@ -192,13 +193,17 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         logger.info(f"{len(missing_users)} users are missing from activity sheet")
         update_range = f'A{current_row+1}:A{current_row + len(missing_users)}'
         self.activity_sheet.update(update_range, [[user] for user in missing_users])
+        self.activity_values = self.activity_sheet.get_all_values()
         
-    def update_activity_sheet(self, now: str = datetime.now().strftime("%Y%m%d %H:%M")):
+    def update_activity_sheet(self, now: str = datetime.now().strftime("%Y%m%d")):
+        logger.info("Updaing activity sheet...")
+        users = [int(row[0]) for row in self.activity_values[1:]]
+        
         last_date = datetime.strptime(self.activity_values[0][-1], "%Y%m%d")
         now = datetime.strptime(now, "%Y%m%d")
         
         current_date = last_date
-        while current_date <= now:
+        while current_date < now:
             # Move to the next day
             current_date += dt.timedelta(days=1)
             pipeline = [
@@ -213,12 +218,20 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                 },
                 {
                     "$group": {
-                        
+                            "_id": "$userID",
+                            "count": {"$sum": 1}
                     }
                 }
             ]
-            
-            
+            res = list(self.bot_collection.aggregate(pipeline))
+            res = {doc["_id"]: doc for doc in res}
+            column = [current_date.strftime("%Y%m%d")]
+            for user in users:
+                cell_val = res.get(user, {}).get("count", 0)
+                column.append(cell_val)
+            self.activity_sheet.insert_cols([column], col=self.activity_sheet_col_idx)
+            self.activity_sheet_col_idx += 1
+            time.sleep(0.5)
             
             last_date = current_date
         
@@ -682,6 +695,13 @@ def main():
     logger.info(f"sheet users: {len(set([int(row[0]) for row in sheet.sheet_values[1:]]))}")
     logger.info("start updating stats sheet")
     logger.info(f"date: {date}")
+    
+    logger.info("Adding missing users to activity sheet...")
+    sheet.add_missing_users_to_activity_sheet()
+    logger.info("Updating activity sheet...")
+    sheet.update_activity_sheet()
+    logger.info("Activity sheet finished updating")
+    
     sheet.update_stats_sheet(date=date)
     logger.info("Finished updating stats sheet")
     sheet.update_invites_sheet()
