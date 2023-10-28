@@ -10,3 +10,4 @@ __pycache__/
 ftp*
 *.png
 *.json
+*.log*

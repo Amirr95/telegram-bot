@@ -5,6 +5,7 @@ import time
 import logging
 from logging.handlers import RotatingFileHandler
 import warnings
+import datetime as dt
 from datetime import datetime
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -35,8 +36,10 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         self.sheet = self.worksheet.sheet1
         self.stats_sheet = self.worksheet.worksheet("stats")
         self.invite_sheet = self.worksheet.worksheet("invites")
+        self.activity_sheet = self.worksheet.worksheet("user activity")
         self.sheet_values = self.sheet.get_all_values()
         self.stat_values = self.stats_sheet.get_all_values()
+        self.activity_values = self.activity_sheet.get_all_values()
         self.num_rows = len(self.sheet_values)
         self.num_stat_rows = len(self.stat_values)
 
@@ -180,6 +183,46 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
             return False
         else:
             return True
+    
+    def add_missing_users_to_activity_sheet(self):
+        current_row = len(self.activity_values)
+        present_users = [int(row[0]) for row in self.activity_values[1:]]
+        db_users = self.user_collection.distinct("_id")
+        missing_users = [user for user in db_users if user not in present_users]
+        logger.info(f"{len(missing_users)} users are missing from activity sheet")
+        update_range = f'A{current_row+1}:A{current_row + len(missing_users)}'
+        self.activity_sheet.update(update_range, [[user] for user in missing_users])
+        
+    def update_activity_sheet(self, now: str = datetime.now().strftime("%Y%m%d %H:%M")):
+        last_date = datetime.strptime(self.activity_values[0][-1], "%Y%m%d")
+        now = datetime.strptime(now, "%Y%m%d")
+        
+        current_date = last_date
+        while current_date <= now:
+            # Move to the next day
+            current_date += dt.timedelta(days=1)
+            pipeline = [
+                {
+                    "$match": {
+                        "user_activity": {"$exists": True},
+                        "timestamp": {
+                            "$gte": datetime.strftime(last_date, "%Y%m%d"),
+                            "$lt": datetime.strftime(current_date, "%Y%m%d")
+                        }
+                    }
+                },
+                {
+                    "$group": {
+                        
+                    }
+                }
+            ]
+            
+            
+            
+            last_date = current_date
+        
+        
     
     def check_if_user_is_registered(self, user_id: int):
         document = self.user_collection.find_one( {"_id": user_id} )
