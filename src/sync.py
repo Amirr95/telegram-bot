@@ -231,7 +231,7 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                 column.append(cell_val)
             self.activity_sheet.insert_cols([column], col=self.activity_sheet_col_idx)
             self.activity_sheet_col_idx += 1
-            time.sleep(0.5)
+            time.sleep(1)
             
             last_date = current_date
         
