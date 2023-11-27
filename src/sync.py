@@ -37,19 +37,26 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         self.stats_sheet = self.worksheet.worksheet("stats")
         self.invite_sheet = self.worksheet.worksheet("invites")
         self.activity_sheet = self.worksheet.worksheet("user activity")
+        self.sms_sheet = self.worksheet.worksheet("sms")
+        self.dialog_sheet = self.worksheet.worksheet("telegram msg")
         self.sheet_values = self.sheet.get_all_values()
         self.stat_values = self.stats_sheet.get_all_values()
         self.activity_values = self.activity_sheet.get_all_values()
         self.activity_sheet_col_idx = len(self.activity_values[0]) + 1
+        self.sms_values = self.sms_sheet.get_all_values()
+        self.sms_sheet_col_idx = len(self.sms_values[0]) + 1
+        self.dialog_values = self.dialog_sheet.get_all_values()
+        self.dialog_sheet_col_idx = len(self.dialog_values[0]) + 1
         self.num_rows = len(self.sheet_values)
         self.num_stat_rows = len(self.stat_values)
 
-        self.client = pymongo.MongoClient(os.environ["MONGODB_URI"])
+        self.client = pymongo.MongoClient("mongodb+srv://arrezvaniyan:in4Tech@botcluster.7bzeigt.mongodb.net/")
         self.required_fields = ["name", "phone-number"]
         self.db = self.client["agriweathBot"]
         self.user_collection = self.db["newUserCollection"]
         self.token_collection = self.db["tokenCollection"]
         self.bot_collection = self.db["botCollection"]
+        self.sms_collection = self.db["smsCollection"]
 
         self.num_users_w_farms_pipeline = [
     {
@@ -184,6 +191,16 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
             return False
         else:
             return True
+        
+    def add_missing_users_to_sms_sheet(self):
+        current_row = len(self.sms_values)
+        present_users = [int(row[0]) for row in self.sms_values[1:]]
+        db_users = self.user_collection.distinct("_id")
+        missing_users = [user for user in db_users if user not in present_users]
+        logger.info(f"{len(missing_users)} users are missing from sms sheet")
+        update_range = f'A{current_row+1}:A{current_row + len(missing_users)}'
+        self.sms_sheet.update(update_range, [[user] for user in missing_users])
+        self.sms_values = self.sms_sheet.get_all_values()
     
     def add_missing_users_to_activity_sheet(self):
         current_row = len(self.activity_values)
@@ -235,7 +252,56 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
             
             last_date = current_date
         
+    def update_sms_sheet(self, now: str = datetime.now().strftime("%Y%m%d")):
+        logger.info("Updaing sms sheet...")
+        users = [int(row[0]) for row in self.sms_values[1:]]
         
+        last_date = datetime.strptime(self.sms_values[0][-1], "%Y%m%d")
+        now = datetime.strptime(now, "%Y%m%d")
+        
+        current_date = last_date
+        while current_date < now:
+            # Move to the next day
+            current_date += dt.timedelta(days=1)
+            pipeline = [
+                {
+                    "$match": {
+                        "timestamp": {
+                            "$gte": datetime.strftime(last_date, "%Y%m%d"),
+                            "$lt": datetime.strftime(current_date, "%Y%m%d")
+                        }
+                    }
+                },
+                {
+                    "$group": {
+                            "_id": "$userID",
+                            "messages": {"$push": "$msg-code"},
+                            "time": {"$push": "$timestamp"}
+                    }
+                }
+            ]
+            res = list(self.sms_collection.aggregate(pipeline))
+            messages = {doc["_id"]: doc["messages"] for doc in res}
+            times = {doc["_id"]: doc["time"] for doc in res}
+            # res = {doc["_id"]: doc["messages"] for doc in res}
+            column = [current_date.strftime("%Y%m%d")]
+            for user in users:
+                user_msg = messages.get(user, [])
+                msg_time = times.get(user, [])
+                out = []
+                for i, item in enumerate(user_msg):
+                    val = f"{item}: {msg_time[i].split(' ')[1]}"
+                    out.append(val)
+                if out:
+                    cell_val = " - ".join(out)
+                else:
+                    cell_val = 0
+                column.append(cell_val)
+            self.sms_sheet.insert_cols([column], col=self.sms_sheet_col_idx)
+            self.sms_sheet_col_idx += 1
+            time.sleep(1)
+            
+            last_date = current_date
     
     def check_if_user_is_registered(self, user_id: int):
         document = self.user_collection.find_one( {"_id": user_id} )
@@ -341,7 +407,9 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                     mongo_doc.get("first-seen"),
                     mongo_doc.get("phone-number"),
                     farm_name,
+                    mongo_doc['farms'][farm_name].get("type"),
                     mongo_doc['farms'][farm_name].get("product"),
+                    mongo_doc['farms'][farm_name].get("automn-time"),
                     mongo_doc['farms'][farm_name].get("province"),
                     mongo_doc['farms'][farm_name].get("city"),
                     mongo_doc['farms'][farm_name].get("village"),
@@ -367,7 +435,9 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                             mongo_doc.get("first-seen"),
                             mongo_doc.get("phone-number"),
                             farm,
+                            mongo_doc['farms'][farm].get("type"),
                             mongo_doc['farms'][farm].get("product"),
+                            mongo_doc['farms'][farm].get("automn-time"),
                             mongo_doc['farms'][farm].get("province"),
                             mongo_doc['farms'][farm].get("city"),
                             mongo_doc['farms'][farm].get("village"),
@@ -388,6 +458,7 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                         mongo_doc.get("name"),
                         mongo_doc.get("first-seen"),
                         mongo_doc.get("phone-number"),
+                        '',
                         '',
                         '',
                         '',
@@ -427,10 +498,11 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                         '',
                         '',
                         '',
+                        '',
                         mongo_doc.get("blocked"),
                         mongo_doc.get("invited-by")
                         ]
-                self.sheet.update(f"A{i+2}:P{i+2}", [row])
+                self.sheet.update(f"A{i+2}:R{i+2}", [row])
                 time.sleep(0.5)
             else:
                 try:
@@ -440,7 +512,9 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                             mongo_doc.get("first-seen"),
                             mongo_doc.get("phone-number"),
                             farm_name,
+                            mongo_doc['farms'][farm_name].get("type"),
                             mongo_doc['farms'][farm_name].get("product"),
+                            mongo_doc['farms'][farm_name].get("automn-time"),
                             mongo_doc['farms'][farm_name].get("province"),
                             mongo_doc['farms'][farm_name].get("city"),
                             mongo_doc['farms'][farm_name].get("village"),
@@ -450,9 +524,10 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                             mongo_doc['farms'][farm_name].get("location-method"),
                             mongo_doc.get("blocked"),
                             mongo_doc.get("invited-by")]
-                    self.sheet.update(f"A{i+2}:P{i+2}", [row])
+                    self.sheet.update(f"A{i+2}:R{i+2}", [row])
                     time.sleep(0.5)
                 except KeyError:
+                    logger.info(f"user {user_id} has deleted a farm called {farm_name}")
                     row = [ user_id, 
                             mongo_doc.get("username"),
                             mongo_doc.get("name"),
@@ -460,7 +535,7 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                             mongo_doc.get("phone-number"),
                             "",
                             "USER HAS DELETED THIS FARM!"]
-                    self.sheet.update(f"A{i+2}:P{i+2}", [row])
+                    self.sheet.update(f"A{i+2}:R{i+2}", [row])
                     time.sleep(0.5)
 
     def find_missing_farms(self, user_id, mongo_doc):
@@ -489,14 +564,18 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
             return no_farms
 
     def add_missing_farms(self, user_id: int, mongo_doc: dict, missing_farms: list):
+        no_farm_rows = self.find_row_without_farms(user_id, mongo_doc)
         for missing_farm in missing_farms:
+            logger.info(f"adding {missing_farm} for {user_id}")
             row = [ user_id, 
                     mongo_doc.get("username"),
                     mongo_doc.get("name"),
                     mongo_doc.get("first-seen"),
                     mongo_doc.get("phone-number"),
                     missing_farm,
+                    mongo_doc['farms'][missing_farm].get("type"),
                     mongo_doc['farms'][missing_farm].get("product"),
+                    mongo_doc['farms'][missing_farm].get("automn-time"),
                     mongo_doc['farms'][missing_farm].get("province"),
                     mongo_doc['farms'][missing_farm].get("city"),
                     mongo_doc['farms'][missing_farm].get("village"),
@@ -506,11 +585,13 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
                     mongo_doc['farms'][missing_farm].get("location-method"),
                     mongo_doc.get("blocked"),
                     mongo_doc.get("invited-by")]
-            no_farm_rows = self.find_row_without_farms(user_id, mongo_doc)
             if no_farm_rows:
-                self.sheet.update(f"A{no_farm_rows[0]+1}:P{no_farm_rows[0]+1}", [row])
+                logger.info(f"{user_id} had empty row")
+                self.sheet.update(f"A{no_farm_rows[0]+1}:R{no_farm_rows[0]+1}", [row])
                 time.sleep(0.5)
+                no_farm_rows.pop(0)
             else:
+                logger.info(f"{user_id} didn't have any empty rows")
                 self.sheet.insert_row(row, self.num_rows + 1)
                 self.num_rows += 1
                 time.sleep(0.5)
@@ -637,6 +718,23 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         num_contact_btn = len(list(contact_btn))
         num_contact_btn_unique = len(contact_btn.distinct("userID"))
 
+        cold_need_btn = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'start to set automn time', 'timestamp': {'$lte': date, '$gte': last_date}}
+        )
+        num_cold_need_btn = len(list(cold_need_btn))
+        num_cold_need_btn_unique = len(cold_need_btn.distinct("userID"))
+        
+        pre_harvest_advice_btn = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'request pre harvest', 'timestamp': {'$lte': date, '$gte': last_date}}
+        )
+        num_pre_harvest_advice_btn = len(list(pre_harvest_advice_btn))
+        num_pre_harvest_advice_btn_unique = len(pre_harvest_advice_btn.distinct("userID"))
+        
+        post_harvest_advice_btn = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'request post harvest', 'timestamp': {'$lte': date, '$gte': last_date}}
+        )
+        num_post_harvest_advice_btn = len(list(post_harvest_advice_btn))
+        num_post_harvest_advice_btn_unique = len(post_harvest_advice_btn.distinct("userID"))
         # farm_stats = self.farm_stats()
         logger.info("Querying location information...")
         location_info = self.get_users_with_location()
@@ -668,9 +766,12 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
             num_verify_payment, num_verify_payment_unique, 
             num_contact_btn, num_contact_btn_unique,
             self.num_post_harvest_farms(), # farm_stats["harvest_off"],
-            self.num_pre_harvest_farms() #farm_stats["harvest_on"],
+            self.num_pre_harvest_farms(), #farm_stats["harvest_on"],
+            num_cold_need_btn, num_cold_need_btn_unique,
+            num_pre_harvest_advice_btn, num_pre_harvest_advice_btn_unique,
+            num_post_harvest_advice_btn, num_post_harvest_advice_btn_unique
         ]
-        self.stats_sheet.update(f"A{self.num_stat_rows+1}:AW{self.num_stat_rows+1}", [row])
+        self.stats_sheet.update(f"A{self.num_stat_rows+1}:BC{self.num_stat_rows+1}", [row])
         time.sleep(0.5)
 
     def update_invites_sheet(self):
@@ -696,6 +797,12 @@ def main():
     logger.info("start updating stats sheet")
     logger.info(f"date: {date}")
     
+    logger.info("Adding missing users to sms sheet...")
+    sheet.add_missing_users_to_sms_sheet()
+    logger.info("Updating sms sheet...")
+    sheet.update_sms_sheet()
+    logger.info("SMS sheet finished updating")
+    
     logger.info("Adding missing users to activity sheet...")
     sheet.add_missing_users_to_activity_sheet()
     logger.info("Updating activity sheet...")
@@ -714,8 +821,8 @@ def main():
         else:
             missing_farms = sheet.find_missing_farms(user, mongo_doc)
             if missing_farms:
-                sheet.add_missing_farms(user, mongo_doc, missing_farms)
                 logger.info(f"user had missing farms: {missing_farms}")
+                sheet.add_missing_farms(user, mongo_doc, missing_farms)
     logger.info("Finished adding new rows")            
     sheet.update_existing_rows()
     logger.info("Finished updating existing rows")
