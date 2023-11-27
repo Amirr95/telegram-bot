@@ -50,13 +50,14 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         self.num_rows = len(self.sheet_values)
         self.num_stat_rows = len(self.stat_values)
 
-        self.client = pymongo.MongoClient("mongodb+srv://arrezvaniyan:in4Tech@botcluster.7bzeigt.mongodb.net/")
+        self.client = pymongo.MongoClient(os.environ["MONGODB_URI"])
         self.required_fields = ["name", "phone-number"]
         self.db = self.client["agriweathBot"]
         self.user_collection = self.db["newUserCollection"]
         self.token_collection = self.db["tokenCollection"]
         self.bot_collection = self.db["botCollection"]
         self.sms_collection = self.db["smsCollection"]
+        self.dialog_collection = self.db["dialogCollection"]
 
         self.num_users_w_farms_pipeline = [
     {
