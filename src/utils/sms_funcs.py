@@ -5,6 +5,7 @@ from telegram.error import Forbidden, BadRequest
 import aiohttp
 import os
 import datetime
+from asyncio.exceptions import TimeoutError
 
 from database import Database
 from utils.logger import logger
@@ -72,6 +73,10 @@ async def check_status(context: ContextTypes.DEFAULT_TYPE):
     msg_id = data.get("msg_id")
     msg_code = data.get("msg_code")
     origin: str = data.get("origin", "")
+    job_counter: int = data.get("job_counter")
+    if not job_counter:
+        raise ValueError(f"job_counter is not defined:\n{data}")
+    
     
     status = await msg_status_method(msg_id=msg_id)
     status_code = int(status.get("Status"))
@@ -79,9 +84,13 @@ async def check_status(context: ContextTypes.DEFAULT_TYPE):
     if status_code != 6:
         if status_code in known_status:
             if origin == "no_farm_sms":
-                context.job_queue.run_once(sms_no_farm, when=datetime.timedelta(seconds=60), chat_id=user_id)
+                if job_counter < 3:
+                    data["job_counter"] += 1
+                    context.job_queue.run_once(sms_no_farm, when=datetime.timedelta(seconds=60), chat_id=user_id)
             elif origin.startswith("farm_incomplete"):
-                context.job_queue.run_once(sms_incomplete_farm, when=datetime.timedelta(seconds=60), chat_id=user_id,
+                if job_counter < 3:
+                    data["job_counter"] += 1
+                    context.job_queue.run_once(sms_incomplete_farm, when=datetime.timedelta(seconds=60), chat_id=user_id,
                                            data= data)
         else:
             text = f"API call to sendsms returned a status code of {status}\njob data: {data}"
@@ -93,6 +102,8 @@ async def check_status(context: ContextTypes.DEFAULT_TYPE):
         
 async def sms_no_farm(context: ContextTypes.DEFAULT_TYPE):
     user_id = context.job.chat_id
+    data = context.job.data
+    job_counter: int = data.get("job_counter", 1)
     user_doc = db.user_collection.find_one({"_id": user_id})
     name = user_doc.get("name", "کاربر")
     phone_num = user_doc.get("phone-number")
@@ -105,13 +116,17 @@ async def sms_no_farm(context: ContextTypes.DEFAULT_TYPE):
 """
     if db.check_if_user_is_registered(user_id) and not db.get_farms(user_id):
         if phone_num:
-            res = await send_sms_method(text=msg, receiver=phone_num)
+            try:
+                res = await send_sms_method(text=msg, receiver=phone_num)
+            except TimeoutError:
+                await context.bot.send_message(chat_id=103465015, text=f"TimeoutError while sending sms to {phone_num}")
             data = {
                 "msg": msg,
                 "msg_code": 1, # Just a code to represent the message in google sheet
                 "receiver": phone_num,
                 "msg_id": res[0], # The ID returned by the sendsms method
-                "origin": "no_farm_sms"
+                "origin": "no_farm_sms",
+                "job_counter": job_counter
             }
             logger.info(res)
             context.job_queue.run_once(check_status, when=datetime.timedelta(minutes=5), chat_id=user_id, data=data)
@@ -125,6 +140,7 @@ async def sms_incomplete_farm(context: ContextTypes.DEFAULT_TYPE):
     user_id = context.job.chat_id
     data = context.job.data
     timestamp_add_farm = data.get("timestamp")
+    job_counter: int = data.get("job_counter", 1)
     user_doc = db.user_collection.find_one({"_id": user_id})
     name = user_doc.get("name", "کاربر")
     phone_num = user_doc.get("phone-number")
@@ -153,16 +169,23 @@ async def sms_incomplete_farm(context: ContextTypes.DEFAULT_TYPE):
                 else:
                     msg = msg_from_status_check
                     msg_code = 2
-                res = await send_sms_method(text=msg, receiver=phone_num)
-                data = {
-                    "msg": msg,
-                    "msg_code": msg_code,
-                    "receiver": phone_num,
-                    "msg_id": res[0],
-                    "origin": "farm_incomplete_before_location",
-                    "timestamp": timestamp_add_farm
-                }
-                context.job_queue.run_once(check_status, when=datetime.timedelta(minutes=5), chat_id=user_id, data=data)
+                try:
+                    res = await send_sms_method(text=msg, receiver=phone_num)
+                except TimeoutError:
+                    await context.bot.send_message(chat_id=103465015, text=f"TimeoutError while sending sms to {phone_num}")
+                try:
+                    data = {
+                        "msg": msg,
+                        "msg_code": msg_code,
+                        "receiver": phone_num,
+                        "msg_id": res[0],
+                        "origin": "farm_incomplete_before_location",
+                        "timestamp": timestamp_add_farm,
+                        "job_counter": job_counter
+                    }
+                    context.job_queue.run_once(check_status, when=datetime.timedelta(minutes=5), chat_id=user_id, data=data)
+                except KeyError:
+                    await context.bot.send_message(chat_id=103465015, text=f"res: {res}\ndata: {data}\nEncountered a KeyError.")
             else:
                 if not msg_from_status_check:
                     msg = msg_location
@@ -170,14 +193,18 @@ async def sms_incomplete_farm(context: ContextTypes.DEFAULT_TYPE):
                 else:
                     msg = msg_from_status_check
                     msg_code = 3
-                res = await send_sms_method(text=msg, receiver=phone_num)
+                try:
+                    res = await send_sms_method(text=msg, receiver=phone_num)
+                except TimeoutError:
+                    await context.bot.send_message(chat_id=103465015, text=f"TimeoutError while sending sms to {phone_num}")
                 data = {
                     "msg": msg,
                     "msg_code": msg_code,
                     "receiver": phone_num,
                     "msg_id": res[0],
                     "origin": "farm_incomplete_after_location",
-                    "timestamp": timestamp_add_farm
+                    "timestamp": timestamp_add_farm,
+                    "job_counter": job_counter
                 }
                 context.job_queue.run_once(check_status, when=datetime.timedelta(minutes=5), chat_id=user_id, data=data)
 
