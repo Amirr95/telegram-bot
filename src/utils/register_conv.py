@@ -83,9 +83,9 @@ async def handle_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(reply_text, parse_mode=ParseMode.HTML, reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=False, resize_keyboard=True))
     if datetime.time(2, 30).strftime("%H%M") <= datetime.datetime.now().strftime("%H%M") < datetime.time(17, 30).strftime("%H%M"): 
-        context.job_queue.run_once(sms_no_farm, when=datetime.timedelta(hours=2), chat_id=user.id, data=user.username)
+        context.job_queue.run_once(sms_no_farm, when=datetime.timedelta(hours=2), chat_id=user.id, data={})
     else:
-        context.job_queue.run_once(sms_no_farm, when=datetime.time(4, 30), chat_id=user.id, data=user.username) 
+        context.job_queue.run_once(sms_no_farm, when=datetime.time(4, 30), chat_id=user.id, data={}) 
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
