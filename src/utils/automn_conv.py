@@ -11,6 +11,9 @@ from telegram.constants import ParseMode
 
 import datetime
 import jdatetime
+import rasterio
+from rasterio.errors import RasterioIOError
+from rasterio.transform import rowcol
 import warnings
 
 import database
@@ -22,6 +25,7 @@ from .keyboards import (
     automn_week,
     get_product_keyboard
 )
+from .table_generator import chilling_hours_table
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -31,6 +35,33 @@ MENU_CMDS = ['✍️ ثبت نام', '📤 دعوت از دیگران', '🖼 م
 ####################### Initialize Database #######################
 db = database.Database()
 
+
+# Calculate chilling hours
+def calculate_chilling_hours(automn_time: str, longitude: float, latitude: float) -> dict[str, float]:
+    methods = ['Chilling_Hours', 'Chilling_Hours_7', 'Dynamic', 'Utah']
+    hours = {}
+    for method in methods:
+        with rasterio.open(f"data/Daily_{method}.tif") as src:
+            row, col = rowcol(src.transform, longitude, latitude)
+            
+            pixel_values = []
+            for band in range(1, src.count + 1):
+                pixel_values.append(src.read(band)[row, col])
+        automn_time_to_start_band_index = {
+            "هفته اول - آبان": 0,
+            "هفته دوم - آبان": 0,
+            "هفته سوم - آبان": 3,
+            "هفته چهارم - آبان": 10,
+            "هفته اول - آذر": 24,
+            "هفته دوم - آذر": 31,
+            "هفته سوم - آذر": 38,
+            "هفته چهارم - آذر": 45,
+        }
+
+        start_band_index = automn_time_to_start_band_index.get(automn_time)    
+        hours[method] = round(sum(pixel_values[start_band_index:]))
+    return hours
+           
 # START OF AUTOMN TIME CONVERSATION
 async def automn_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -72,10 +103,28 @@ async def ask_automn_month(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     db.log_activity(user.id, f"chose farm for setting automn time", farm)
     if user_farms[farm].get("automn-time"):
-        db.log_activity(user.id, "automn time of farm was already set", farm)
-        reply_text = "نیاز سرمایی شما در حال محاسبه است و در زمان لازم اطلاع‌رسانی خواهد شد."
-        await update.message.reply_text(reply_text, reply_markup=db.find_start_keyboard(user.id))
-        return ConversationHandler.END
+        if user_farms[farm].get("location", {}).get("longitude") and user_farms[farm].get("location", {}).get("latitude"):
+            reply_text = f"این ساعت‌ها با توجه به موقعیت و زمان خزان ثبت‌شده توسط شما <b>({user_farms[farm].get('automn-time')})</b> برای باغ شما: #<b>{farm.replace(' ', '_')}</b> محاسبه شده‌اند"
+            try:
+                hours = calculate_chilling_hours(user_farms[farm].get("automn-time"), user_farms[farm].get("location", {}).get("longitude"), user_farms[farm].get("location", {}).get("latitude"))
+                chilling_hours_table(["زیر هفت", "صفر تا هفت", "دینامیک", "یوتا"],
+                                    [(jdatetime.date.today() - jdatetime.timedelta(days=1 )).strftime("%Y/%m/%d")] * 4,
+                                    [hours["Chilling_Hours"], hours["Chilling_Hours_7"], hours["Dynamic"], hours["Utah"]],
+                                    "chill-table.png")
+                with open('chill-table.png', 'rb') as image_file:
+                    await context.bot.send_photo(chat_id=user.id, photo=image_file, caption=reply_text, reply_markup=db.find_start_keyboard(user.id), parse_mode=ParseMode.HTML)
+                # db.log_activity(user.id, "automn time of farm was already set", farm)
+                db.log_activity(user.id, "received chilling hours report", hours)
+                # await update.message.reply_text(reply_text, reply_markup=db.find_start_keyboard(user.id))
+                return ConversationHandler.END
+            except RasterioIOError:
+                logger.info(f"{user.id} requested chilling hours. File was not found!")
+                await context.bot.send_message(chat_id=user.id, text="متاسفانه اطلاعات باغ شما در حال حاضر موجود نیست", reply_markup=db.find_start_keyboard(user.id))
+                return ConversationHandler.END
+        else:
+            db.log_activity(user.id, "error - chose farm for automn time" , farm)
+            await update.message.reply_text("پیش از دریافت نیاز سرمایی باید مختصات باغ خود را ثبت کنید.", reply_markup=db.find_start_keyboard(user.id))
+            return ConversationHandler.END
     else:
         user_data["set-automn-time-of-farm"] = farm
         reply_text = "برای محاسبه نیاز سرمایی لطفا زمان خزان باغ خود را ثبت کنید."
