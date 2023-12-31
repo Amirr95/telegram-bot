@@ -212,7 +212,10 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.error(f"user {user_id} blocked the bot")
                 await context.bot.send_message(chat_id=user.id, text=f"{user_id} blocked the bot")
                 db.set_user_attribute(user_id, "blocked", True)
-                context.job_queue.run_once(sms_block, when=datetime.timedelta(seconds=5), chat_id=user_id, data={})
+                if datetime.time(5).strftime("%H%M") <= datetime.datetime.now().strftime("%H%M") < datetime.time(19).strftime("%H%M"): 
+                    context.job_queue.run_once(sms_block, when=datetime.timedelta(minutes=30), chat_id=user_id, data={})
+                else:
+                    context.job_queue.run_once(sms_block, when=datetime.time(4, 30), chat_id=user_id, data={}) 
             except BadRequest:
                 logger.error(f"chat with {user_id} not found.")
                 await context.bot.send_message(chat_id=user.id, text=f"{user_id} was not found")

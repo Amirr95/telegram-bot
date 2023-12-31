@@ -62,7 +62,10 @@ async def register_reminder(context: ContextTypes.DEFAULT_TYPE):
         except Forbidden:
             db.set_user_attribute(user_id, "blocked", True)
             logger.info(f"user:{user_id} has blocked the bot!")
-            context.job_queue.run_once(sms_block, when=datetime.timedelta(seconds=5), chat_id=user_id, data={})
+            if datetime.time(5).strftime("%H%M") <= datetime.datetime.now().strftime("%H%M") < datetime.time(19).strftime("%H%M"): 
+                context.job_queue.run_once(sms_block, when=datetime.timedelta(minutes=30), chat_id=user_id, data={})
+            else:
+                context.job_queue.run_once(sms_block, when=datetime.time(4, 30), chat_id=user_id, data={}) 
         except BadRequest:
             logger.info(f"user:{user_id} chat was not found!")
 
@@ -79,7 +82,10 @@ async def no_farm_reminder(context: ContextTypes.DEFAULT_TYPE):
         except Forbidden:
             db.set_user_attribute(user_id, "blocked", True)
             logger.info(f"user:{user_id} has blocked the bot!")
-            context.job_queue.run_once(sms_block, when=datetime.timedelta(seconds=5), chat_id=user_id, data={})
+            if datetime.time(5).strftime("%H%M") <= datetime.datetime.now().strftime("%H%M") < datetime.time(19).strftime("%H%M"): 
+                context.job_queue.run_once(sms_block, when=datetime.timedelta(minutes=30), chat_id=user_id, data={})
+            else:
+                context.job_queue.run_once(sms_block, when=datetime.time(4, 30), chat_id=user_id, data={}) 
         except BadRequest:
             logger.info(f"user:{user_id} chat was not found!")
 
@@ -98,7 +104,10 @@ async def no_location_reminder(context: ContextTypes.DEFAULT_TYPE):
             except Forbidden:
                 db.set_user_attribute(user_id, "blocked", True)
                 logger.info(f"user:{user_id} has blocked the bot!")
-                context.job_queue.run_once(sms_block, when=datetime.timedelta(seconds=5), chat_id=user_id, data={})
+                if datetime.time(5).strftime("%H%M") <= datetime.datetime.now().strftime("%H%M") < datetime.time(19).strftime("%H%M"): 
+                    context.job_queue.run_once(sms_block, when=datetime.timedelta(minutes=30), chat_id=user_id, data={})
+                else:
+                    context.job_queue.run_once(sms_block, when=datetime.time(4, 30), chat_id=user_id, data={}) 
             except BadRequest:
                 logger.info(f"user:{user_id} chat was not found!")
 
@@ -220,7 +229,10 @@ async def send_todays_data(context: ContextTypes.DEFAULT_TYPE):
                                 except Forbidden:
                                     db.set_user_attribute(id, "blocked", True)
                                     logger.info(f"user:{id} has blocked the bot!")
-                                    context.job_queue.run_once(sms_block, when=datetime.timedelta(seconds=5), chat_id=id, data={})
+                                    if datetime.time(5).strftime("%H%M") <= datetime.datetime.now().strftime("%H%M") < datetime.time(19).strftime("%H%M"): 
+                                        context.job_queue.run_once(sms_block, when=datetime.timedelta(minutes=30), chat_id=id, data={})
+                                    else:
+                                        context.job_queue.run_once(sms_block, when=datetime.time(4, 30), chat_id=id, data={}) 
                                 except BadRequest:
                                     logger.info(f"user:{id} chat was not found!")
                             else:
