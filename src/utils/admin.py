@@ -12,11 +12,13 @@ from telegram.ext import (
 )
 from telegram.error import BadRequest, Forbidden
 import os
+import datetime
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import warnings
 import database
+from .sms_funcs import sms_block
 from .keyboards import (
     stats_keyboard,
     back_button,
@@ -210,6 +212,7 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.error(f"user {user_id} blocked the bot")
                 await context.bot.send_message(chat_id=user.id, text=f"{user_id} blocked the bot")
                 db.set_user_attribute(user_id, "blocked", True)
+                context.job_queue.run_once(sms_block, when=datetime.timedelta(seconds=5), chat_id=user_id, data={})
             except BadRequest:
                 logger.error(f"chat with {user_id} not found.")
                 await context.bot.send_message(chat_id=user.id, text=f"{user_id} was not found")
