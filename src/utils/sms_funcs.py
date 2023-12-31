@@ -109,7 +109,7 @@ async def sms_no_farm(context: ContextTypes.DEFAULT_TYPE):
     phone_num = user_doc.get("phone-number")
     msg = f"""
 {name} عزیز، برای دریافت اطلاعات هواشناسی آباد، لطفا زمین خود را ثبت کنید.
-ربات آباد: @agriweathbot
+ربات آباد: https://t.me/agriweathbot
 تماس با ما: 02164063410
 نیاز به راهنمایی 22
 لغو 11
@@ -128,7 +128,6 @@ async def sms_no_farm(context: ContextTypes.DEFAULT_TYPE):
                 "origin": "no_farm_sms",
                 "job_counter": job_counter
             }
-            logger.info(res)
             context.job_queue.run_once(check_status, when=datetime.timedelta(minutes=5), chat_id=user_id, data=data)
     
     
@@ -147,14 +146,14 @@ async def sms_incomplete_farm(context: ContextTypes.DEFAULT_TYPE):
     msg_from_status_check = data.get("msg")
     msg_before_location = f"""
 {name} عزیز، ثبت زمین شما در ربات هواشناسی آباد تکمیل نشده است. جهت دریافت خدمات لطفا مراحل ثبت زمین را تا انتها انجام دهید.
-ربات آباد: @agriweathbot
+ربات آباد: https://t.me/agriweathbot
 تماس با ما: 02164063410
 نیاز به راهنمایی 22
 لغو 11
     """
     msg_location = f"""
 {name} عزیز، برای دریافت خدمات هواشناسی آباد نیاز به ثبت موقعیت زمین شما است. لطفا موقعیت زمین خود را در ربات ثبت کنید.
-ربات آباد: @agriweathbot
+ربات آباد: https://t.me/agriweathbot
 تماس با ما: 02164063410
 نیاز به راهنمایی 22
 لغو 11
@@ -209,4 +208,58 @@ async def sms_incomplete_farm(context: ContextTypes.DEFAULT_TYPE):
                 context.job_queue.run_once(check_status, when=datetime.timedelta(minutes=5), chat_id=user_id, data=data)
 
             
-        
+async def missing_data_notification(context: ContextTypes.DEFAULT_TYPE):
+    user_id = context.job.chat_id
+    phone_num = "989113312757"
+    msg = """
+    سلام آقای دکتر صبح شما بخیر
+    فایل‌های امروز روی سرور آپلود نشده‌اند.
+    """
+    data = context.job.data
+    job_counter: int = data.get("job_counter", 1)
+    try:
+        res = await send_sms_method(text=msg, receiver=phone_num)
+    except TimeoutError:
+        await context.bot.send_message(chat_id=103465015, text=f"TimeoutError while sending sms to {phone_num} (Dr. Oskooei)")
+    data = {
+        "msg": msg,
+        "msg_code": "missing data", # Just a code to represent the message in google sheet
+        "receiver": phone_num,
+        "msg_id": res[0], # The ID returned by the sendsms method
+        "origin": "missing_data_sms",
+        "job_counter": job_counter
+    }
+    context.job_queue.run_once(check_status, when=datetime.timedelta(minutes=5), chat_id=user_id, data=data)
+
+
+async def sms_block(context: ContextTypes.DEFAULT_TYPE):
+    user_id = context.job.chat_id
+    data = context.job.data
+    job_counter: int = data.get("job_counter", 1)
+    user_doc = db.user_collection.find_one({"_id": user_id})
+    name = user_doc.get("name", "کاربر")
+    phone_num = user_doc.get("phone-number")
+    msg = f"""
+{name} عزیز، متأسفانه شما ربات هواشناسی کشاورزی آباد را پاک کرده‌اید و دیگر قادر به ارائه خدمات به شما نیستیم.
+لطفاً اشکال کار را به ما پیامک کنید تا بتوانیم آن را برطرف کنیم.
+در صورت نیاز، می توانید از لینک زیر مجدداً در ربات عضو شوید:
+https://t.me/agriweathbot
+لغو 11
+
+"""
+    if db.check_if_user_is_registered(user_id) and db.check_if_user_has_farms_with_location(user_id, user_doc):
+        if phone_num:
+            try:
+                res = await send_sms_method(text=msg, receiver=phone_num)
+            except TimeoutError:
+                await context.bot.send_message(chat_id=103465015, text=f"TimeoutError while sending sms-block to {phone_num}")
+            data = {
+                "msg": msg,
+                "msg_code": 4, # Just a code to represent the message in google sheet
+                "receiver": phone_num,
+                "msg_id": res[0], # The ID returned by the sendsms method
+                "origin": "block_sms",
+                "job_counter": job_counter
+            }
+            context.job_queue.run_once(check_status, when=datetime.timedelta(minutes=5), chat_id=user_id, data=data)
+    
