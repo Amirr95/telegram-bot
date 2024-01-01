@@ -237,6 +237,7 @@ async def sms_block(context: ContextTypes.DEFAULT_TYPE):
     data = context.job.data
     job_counter: int = data.get("job_counter", 1)
     user_doc = db.user_collection.find_one({"_id": user_id})
+    has_already_been_messaged = user_doc.get("sms-block", False)
     name = user_doc.get("name", "کاربر")
     phone_num = user_doc.get("phone-number")
     msg = f"""
@@ -247,7 +248,7 @@ https://t.me/agriweathbot
 لغو 11
 
 """
-    if db.check_if_user_is_registered(user_id) and db.check_if_user_has_farms_with_location(user_id, user_doc):
+    if db.check_if_user_is_registered(user_id) and db.check_if_user_has_farms_with_location(user_id, user_doc) and not has_already_been_messaged:
         if phone_num:
             try:
                 res = await send_sms_method(text=msg, receiver=phone_num)
