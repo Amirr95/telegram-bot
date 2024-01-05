@@ -238,6 +238,8 @@ async def sms_block(context: ContextTypes.DEFAULT_TYPE):
     job_counter: int = data.get("job_counter", 1)
     user_doc = db.user_collection.find_one({"_id": user_id})
     has_already_been_messaged = user_doc.get("sms-block", False)
+    if not has_already_been_messaged:
+        db.user_collection.update_one({"_id": user_id}, {"$set": {"sms-block": True}})
     name = user_doc.get("name", "کاربر")
     phone_num = user_doc.get("phone-number")
     msg = f"""
