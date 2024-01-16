@@ -182,6 +182,8 @@ async def set_automn_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     farm = user_data["set-automn-time-of-farm"]
     logger.info(f"farm: {farm}")
     db.set_user_attribute(user.id, f"farms.{farm}.automn-time", f"{week} - {month}")
+    reply_text = "زمان خزان باغ شما ثبت شد. اکنون میتوانید از گزینه <b>نیاز سرمایی</b> موجود در منو اطلاعات باغ خود را مشاهده کنید."
+    await update.message.reply_text(reply_text, reply_markup=db.find_start_keyboard(user.id), parse_mode=ParseMode.HTML,)
     return ConversationHandler.END
     farm_dict = db.get_farms(user.id)[farm]
     product = farm_dict.get("product")
