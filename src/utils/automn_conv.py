@@ -182,6 +182,7 @@ async def set_automn_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     farm = user_data["set-automn-time-of-farm"]
     logger.info(f"farm: {farm}")
     db.set_user_attribute(user.id, f"farms.{farm}.automn-time", f"{week} - {month}")
+    return ConversationHandler.END
     farm_dict = db.get_farms(user.id)[farm]
     product = farm_dict.get("product")
     reply_text = f"""
@@ -234,7 +235,7 @@ automn_conv_handler = ConversationHandler(
             AUTOMN_MONTH: [MessageHandler(filters.TEXT , ask_automn_month)],
             AUTOMN_WEEK: [MessageHandler(filters.TEXT , ask_automn_week)],
             SET_AUTOMN_TIME: [MessageHandler(filters.TEXT , set_automn_time)],
-            CONFIRM_PRODUCT: [MessageHandler(filters.TEXT | filters.COMMAND , confirm_product)],
+            # CONFIRM_PRODUCT: [MessageHandler(filters.TEXT | filters.COMMAND , confirm_product)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
