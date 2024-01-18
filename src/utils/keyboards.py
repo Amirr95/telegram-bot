@@ -173,6 +173,16 @@ def view_sp_advise_keyboard(farm_name: str):
     reply_markup = InlineKeyboardMarkup(keyboard)
     return reply_markup
 
+def weather_keyboard(farm_name: str):
+    keyboard = [
+        [
+        InlineKeyboardButton("openMeteo", callback_data=f'open_meteo_prediction\n{farm_name}'),
+        InlineKeyboardButton("مرکز هواشناسی", callback_data=f'oskooei_prediction\n{farm_name}'),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    return reply_markup
+    
 def register_keyboard():
     keyboard = [['✍️ ثبت نام']]
     return ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
@@ -192,6 +202,7 @@ def automn_month():
 def automn_week():
     keyboard = [['هفته دوم', 'هفته اول'], ['هفته چهارم', 'هفته سوم'], ['↩️ بازگشت']]
     return ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+
 
 def choose_role():
     keyboard = [['تعیین id'], ['تمام کاربران'], ['دکمه ثبت نام را نزدند'], ['پسته‌کاران'], ['لوکیشن دار'], ['بدون لوکیشن'], ['بدون شماره تلفن'], ['بازگشت']]

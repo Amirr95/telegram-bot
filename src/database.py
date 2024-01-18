@@ -1,5 +1,6 @@
 import pymongo
-from datetime import datetime
+from datetime import datetime, timedelta
+import jdatetime
 import pickle
 import pandas as pd
 import os
@@ -23,6 +24,7 @@ class Database:
         self.token_collection = self.db["tokenCollection"]
         self.dialog_collection = self.db["dialogCollection"]
         self.sms_collection = self.db["smsCollection"]
+        self.weather_collection = self.db["weatherCollection"]
 
     def check_if_user_exists(self, user_id: int, raise_exception: bool = False):
         if self.user_collection.count_documents({"_id": user_id}) > 0:
@@ -224,6 +226,73 @@ class Database:
             {"$set": {f"farms.{farm_name}": new_farm}}
         )
 
+    def load_weather_data(self, 
+                          user_id: int, 
+                          farm_name: str, 
+                          timestamp: datetime,
+                          max_temp: list[float], 
+                          min_temp: list[float], 
+                          rain_sum: list[float], 
+                          rain_prob: list[float], 
+                          wind_speed: list[float], 
+                          wind_direction: list[float],
+                          relative_humidity: list[float]) -> None:
+        
+        jdate = jdatetime.datetime.fromgregorian(datetime=timestamp)
+        labels = [(jdate + jdatetime.timedelta(days=i)).strftime("%Y/%m/%d") for i in range(7)]
+        document = {
+            "userID": user_id,
+            "farm_name": farm_name,
+            "timestamp": timestamp,
+            "labels": labels,
+            "weather": {
+                "max_temp": max_temp,
+                "min_temp": min_temp,
+                "rain_sum": rain_sum,
+                "rain_prob": rain_prob,
+                "wind_speed": wind_speed,
+                "wind_direction": wind_direction,
+                "relative_humidity": relative_humidity
+            }    
+        }
+        
+        self.weather_collection.insert_one(document)
+        
+    def query_weather_prediction(self, user_id: int, farm_name: str) -> tuple | None:
+        def degrees_to_direction(degrees):
+            directions = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖']
+            index = round(degrees / 45) % 8
+            return directions[index]
+        document = self.weather_collection.find({"userID": user_id, "farm_name": farm_name}).sort("timestamp", -1).limit(1)
+        document = next(document, None)
+        
+        if document is None:
+            return None
+        
+        labels: list = document.get("labels")
+        tmax_values: list = document.get("weather", {}).get("max_temp")
+        tmin_values: list = document.get("weather", {}).get("min_temp")
+        rain_sum: list = document.get("weather", {}).get("rain_sum")
+        rain_prob: list = document.get("weather", {}).get("rain_prob")
+        wind_speed: list = document.get("weather", {}).get("wind_speed")
+        wind_direction: list = document.get("weather", {}).get("wind_direction")
+        relative_humidity: list = document.get("weather", {}).get("relative_humidity")
+        
+        # change wind direction from degrees to arrows
+        if wind_direction is not None:
+            wind_direction = [degrees_to_direction(degrees) for degrees in wind_direction]
+        
+        # if any of the parameters are missing we need to make a new api call
+        if any(x is None for x in (labels, tmax_values, tmin_values, rain_sum, rain_prob, wind_speed, wind_direction, relative_humidity)):
+            return None
+        
+        # Make sure that the weather document was added today.
+        now = datetime.utcnow()
+        if document.get("timestamp").date() == now.date():
+            return labels, tmax_values, tmin_values, rain_sum, rain_prob, wind_speed, wind_direction, relative_humidity
+        else:
+            return None
+    
     def add_token(self, user_id: int, value: str):
         token_dict = {
             "owner": user_id,
@@ -476,6 +545,43 @@ class Database:
         users = [user["_id"] for user in cursor]
         return users
 
+    def get_farms_with_location(self) -> list[dict[str, any]]:
+        """
+        Returns list[dict[str, any]]: a list of dictionaries with 3 keys:\n
+                _id -> telegram user id,\n
+                farm -> farm name,\n
+                location -> {latitude: `lat`, longitude: `long`}.
+        """
+        pipeline = [ 
+                    { '$match': 
+                        { '$and': [{ 'farms': { '$exists': True } }, 
+                                   { 'farms': { '$ne': None } },
+                                   { 'farms': { '$ne': {} } } 
+                                ] 
+                        }
+                    }, 
+                    { '$addFields': 
+                        {'farmsArray': 
+                           { '$objectToArray': '$farms' } 
+                        }
+                    }, 
+                    { '$unwind': '$farmsArray' }, 
+                    { '$match': 
+                        {'farmsArray.v.location.latitude': { '$ne': None },
+                         'farmsArray.v.location.longitude': { '$ne': None } 
+                        }
+                    }, 
+                    { '$project': 
+                        { 
+                         '_id': 1,
+                         'farm': '$farmsArray.k',
+                         'location': '$farmsArray.v.location' 
+                        } 
+                    } 
+        ]
+        cursor = self.user_collection.aggregate(pipeline) # 
+        return list(cursor)
+        
     def get_users_without_phone(self):
         pipeline = [
             { "$match": {"$or": [ {"phone-number": None}, {"phone-number": ""} ] } },
@@ -493,109 +599,3 @@ class Database:
         blocked_users = self.user_collection.count_documents({"blocked": True})
         return blocked_users
     
-    def populate_user_collection(
-            self,
-            user_id,
-            username: str = "",
-            product: str = "",
-            province: str = "",
-            city: str = "",
-            village: str = "",
-            area = 0,
-            phone_number: str = "",
-            name: str = "",
-            location: dict = {},
-            first_seen: str = datetime.now().strftime("%Y-%m-%d %H:%M")
-        ):
-            user_dict = {
-                "_id": user_id,
-                "username": username,
-                "products": [product],
-                "provinces": [province],
-                "cities": [city],
-                "villages": [village],
-                "areas": [area],
-                "phone-number": phone_number,
-                "name": name,
-                "locations": [location],
-                "first-seen": first_seen
-                # "first-seen": datetime.now().strftime("%Y-%m-%d %H:%m:%s"),
-            }
-
-            if not self.check_if_user_exists(user_id=user_id):
-                self.user_collection.insert_one(user_dict)
-                print(f"added {user_id} to userCollection")
-    def populate_mongodb_from_pickle(self):
-        with open("bot_data.pickle", "rb") as f:
-            user_data = pickle.load(f)["user_data"]
-        for key in user_data:
-            username = user_data[key].get("username", None)
-            product = user_data[key].get("produce", "")
-            province = user_data[key].get("province", "")
-            city = user_data[key].get("city", "")
-            village = user_data[key].get("village", "")
-            area = user_data[key].get("area", 0)
-            phone_number = user_data[key].get("phone", "")
-            name = user_data[key].get("name", "")
-            location = user_data[key].get("location", {})
-            first_seen = user_data[key].get("join-date")
-            self.populate_user_collection(key, username, product, province, city, village, area, phone_number, name, location, first_seen)
-
-
-    def to_excel(self, output_file: str) -> None:
-        user_df = pd.DataFrame(columns=['id', 'username', 'phone', 'first-seen', 'name', 'blocked', 'farm name', 'product', 'province', 'city', 'village','area', 'latitude', 'longitude', 'location method'])
-        users = self.user_collection.distinct("_id")
-        i = 0
-        for user_id in users:
-            document = self.user_collection.find_one({"_id": user_id})
-            farms = self.get_farms(user_id=user_id)
-            if not farms:
-                user_df.loc[i] = pd.Series({
-                'id': user_id,
-                'username': document.get('username'),
-                'phone': document.get('phone-number'),
-                'first-seen': document.get('first-seen'),
-                'name': document.get('name'),
-                'blocked': document.get('blocked'),
-            })
-            elif len(farms) == 1:
-                farm_name = list(farms.keys())[0]
-                user_df.loc[i] = pd.Series({
-                    'id': user_id,
-                    'username': document.get('username'),
-                    'phone': document.get('phone-number'),
-                    'first-seen': document.get('first-seen'),
-                    'name': document.get('name'),
-                    'blocked': document.get('blocked'),
-                    'farm name': farm_name,
-                    'area': farms[farm_name].get('area'),
-                    'product': farms[farm_name].get('product'),
-                    'province': farms[farm_name].get('province'),
-                    'city': farms[farm_name].get('city'),
-                    'village': farms[farm_name].get('village'),
-                    'latitude': farms[farm_name]['location'].get('latitude'),
-                    'longitude': farms[farm_name]['location'].get('longitude'),
-                    'location method': farms[farm_name].get('location-method'),
-                })
-                i += 1
-            elif len(farms) > 1:
-                for key in farms:
-                    user_df.loc[i] = pd.Series({
-                        'id': user_id,
-                        'username': document.get('username'),
-                        'phone': document.get('phone-number'),
-                        'first-seen': document.get('first-seen'),
-                        'name': document.get('name'),
-                        'blocked': document.get('blocked'),
-                        'farm name': key,
-                        'area': farms[key].get('area'),
-                        'product': farms[key].get('product'),
-                        'province': farms[key].get('province'),
-                        'city': farms[key].get('city'),
-                        'village': farms[key].get('village'),
-                        'latitude': farms[key]['location'].get('latitude'),
-                        'longitude': farms[key]['location'].get('longitude'),
-                        'location method': farms[key].get('location-method'),
-                    })
-                    i += 1
-        user_df.to_excel(output_file)

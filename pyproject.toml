@@ -22,6 +22,11 @@ requests = "^2.31.0"
 folium = "^0.14.0"
 aiohttp = "^3.9.0"
 rasterio = "^1.3.9"
+openmeteo-requests = "^1.1.0"
+requests-cache = "^1.1.1"
+retry-requests = "^2.0.0"
+numpy = "^1.26.3"
+pandas = "^2.1.4"
 
 
 [build-system]
