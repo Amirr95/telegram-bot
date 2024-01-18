@@ -27,8 +27,11 @@ from .keyboards import (
     start_keyboard_pesteh_kar,
     view_sp_advise_keyboard,
     view_advise_keyboard,
-    farms_list_reply
+    farms_list_reply,
+    weather_keyboard
 )
+from .weather_api import get_weather_report
+from telegram import InputMediaPhoto
 from .logger import logger
 
 
@@ -170,6 +173,46 @@ async def handle_invite_link(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("عمیلات قبلی لغو شد. لطفا دوباره تلاش کنید.", reply_markup=db.find_start_keyboard(user.id))
         return ConversationHandler.END
 
+# async def change_weather_prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
+#     query = update.callback_query
+#     try:
+#         await query.answer()
+#     except BadRequest:
+#         logger.error(f"query.answer() caused BadRequest error. user: {query.message.chat.id}")
+#     prediction_method = query.data.split("\n")[0]
+#     farm_name = query.data.split("\n")[1]
+#     user_id = query.message.chat.id
+#     if prediction_method == "open_meteo_prediction":
+#         db.log_activity(user_id, "requested open meteo weather")
+#         weather_document = db.query_weather_prediction(user_id, farm_name)
+#         if not weather_document:
+#             farm_document = db.get_farms(user_id).get(farm_name)
+#             latitude = farm_document.get('location', {}).get('latitude')
+#             longitude = farm_document.get('location', {}).get('longitude')
+#             farm_dict = {
+#                 "_id": user_id,
+#                 "farm": farm_name,
+#                 "location": {"latitude": latitude, "longitude": longitude}
+#             }
+#             get_weather_report([farm_dict])
+#             weather_document = db.query_weather_prediction(user_id, farm_name)
+#             if not weather_document:
+#                 logger.warning(f"{user_id} requested weather prediction for {farm_name}. OpenMeteo API call was not successful!")
+#                 await query.edit_message_text("متاسفانه اطلاعات باغ شما در حال حاضر موجود نیست. لطفا پس از مدتی دوباره امتحان کنید.", reply_markup=db.find_start_keyboard(user_id))
+#                 return
+
+#         labels, tmax_values, tmin_values, rain_sum, rain_prob, wind_speed, wind_direction = weather_document
+#         open_meteo_table(labels, tmin_values, tmax_values, rain_sum, rain_prob, wind_speed, wind_direction)
+#         with open('table.png', 'rb') as image_file:
+#             caption = f"""
+# باغدار عزیز 
+# پیش‌بینی وضعیت آب و هوای باغ شما با نام <b>#{farm_name.replace(" ", "_")}</b> در هفت روز آینده بدین صورت خواهد بود
+# منبع: <b>Open Meteo Weather</b>
+# """
+#             media = InputMediaPhoto(image_file, caption=caption, parse_mode=ParseMode.HTML)
+#             await query.edit_message_media(media=media, reply_markup=weather_keyboard(farm_name))
+#     elif prediction_method == "oskooei_prediction":
+#         raise NotImplementedError
 
 
 async def change_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
