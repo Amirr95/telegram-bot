@@ -32,6 +32,7 @@ from utils.keyboards import (
 from utils.add_conv import add_farm_conv_handler
 from utils.edit_conv import edit_farm_conv_handler
 from utils.weather_conv import weather_req_conv_handler
+from utils.weather_api import load_weather_to_db
 from utils.delete_conv import delete_conv_handler
 from utils.register_conv import register_conv_handler
 from utils.view_conv import view_conv_handler
@@ -224,7 +225,11 @@ def main():
         # first=10,
         first=datetime.time(5, 30),
     )
-
+    job_queue.run_repeating(load_weather_to_db,
+        interval=datetime.timedelta(hours=24),
+        first=datetime.time(1, 30),
+        # first=5
+    )
     job_queue.run_once(send_up_notice, when=5)
     
     # Start the bot
