@@ -35,18 +35,17 @@ table.tg tbody tr.t-content:nth-child(even) td{background: #fbfbff;}
 <table class="tg">
 <thead>
   <tr>
-    <th class="tg-qivn">رطوبت</th>
+    <th class="tg-s7u5" rowspan="2">(٪) رطوبت</th>
     <th class="tg-qivn" colspan="2">بارش</th>
-    <th class="tg-qivn" colspan="2">باد</th>
+    <th class="tg-qivn" colspan="2">(Km/h) باد</th>
     <th class="tg-qivn" colspan="2">(&deg;C) دما</th>
     <th class="tg-s7u5" rowspan="2">منبع</th>
     <th class="tg-s7u5" rowspan="2">تاریخ</th>
   </tr>
   <tr>
-    <th class="tg-qivn">درصد</th>
-    <th class="tg-qivn">احتمال</th>
+    <th class="tg-qivn">(٪) احتمال</th>
     <th class="tg-qivn">م م</th>
-    <th class="tg-qivn">Km/h</th>
+    <th class="tg-qivn">سرعت</th>
     <th class="tg-qivn">جهت</th>
     <th class="tg-qivn">کمینه</th>
     <th class="tg-qivn">بیشینه</th>

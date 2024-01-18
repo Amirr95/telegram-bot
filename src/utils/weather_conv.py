@@ -16,14 +16,17 @@ from telegram.ext import (
 from telegram.error import Forbidden, BadRequest
 
 import os
+from itertools import zip_longest
 from fiona.errors import DriverError
 import warnings
 import database
 from .keyboards import (
     farms_list_reply,
-    view_sp_advise_keyboard
+    view_sp_advise_keyboard,
+    weather_keyboard
 )
-from .table_generator import table
+from .weather_api import get_weather_report
+from .table_generator import weather_table
 from telegram.constants import ParseMode
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -122,8 +125,8 @@ async def recv_weather(update: Update, context: ContextTypes.DEFAULT_TYPE):
     latitude = user_farms[farm]["location"]["latitude"]
     
     if longitude is not None:
-        try:
-            if datetime.time(7, 0).strftime("%H%M") <= datetime.datetime.now().strftime("%H%M") < datetime.time(20, 30).strftime("%H%M"):    
+        if datetime.time(5, 32).strftime("%H%M") <= datetime.datetime.now().strftime("%H%M") < datetime.time(20, 30).strftime("%H%M"):    
+            try:
                 weather_data = gpd.read_file(f"data/Iran{today}_weather.geojson")
                 point = Point(longitude, latitude)
                 threshold = 0.1  # degrees
@@ -134,35 +137,29 @@ async def recv_weather(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     tmin_values , tmax_values , rh_values , spd_values , rain_values = [], [], [], [], []
                     for key, value in row.items():
                         if "tmin_Time=" in key:
-                            tmin_values.append(round(value, 1))
+                            tmin_values.append(round(value))
                         elif "tmax_Time=" in key:
-                            tmax_values.append(round(value, 1))
+                            tmax_values.append(round(value))
                         elif "rh_Time=" in key:
-                            rh_values.append(round(value, 1))
+                            rh_values.append(round(value))
                         elif "spd_Time=" in key:
-                            spd_values.append(round(value, 1))
+                            spd_values.append(round(value))
                         elif "rain_Time=" in key:
-                            rain_values.append(round(value, 1))
-                    caption = f"""
-باغدار عزیز 
-پیش‌بینی وضعیت آب و هوای باغ شما با نام <b>#{farm.replace(" ", "_")}</b> در چهار روز آینده بدین صورت خواهد بود
-"""
-                    table([jtoday, jday2, jday3, jday4], tmin_values, tmax_values, rh_values, spd_values, rain_values)
-                    with open('table.png', 'rb') as image_file:
-                        await context.bot.send_photo(chat_id=user.id, photo=image_file, caption=caption, reply_markup=db.find_start_keyboard(user.id), parse_mode=ParseMode.HTML)
-                    username = user.username
-                    db.log_new_message(
-                        user_id=user.id,
-                        username=username,
-                        message=caption,
-                        function="req_weather_4",
-                        )
-                    db.log_activity(user.id, "received 4-day weather reports")
-                    return ConversationHandler.END
+                            rain_values.append(round(value))
+                    oskooei_predictions = {
+                        'tmin': tmin_values, 'tmax': tmax_values,
+                        'rh': rh_values, 'wind': spd_values,
+                        'rain': rain_values
+                    }
+                    open_meteo_predictions = db.query_weather_prediction(user.id, farm)
                 else:
                     await context.bot.send_message(chat_id=user.id, text="متاسفانه اطلاعات هواشناسی باغ شما در حال حاضر موجود نیست", reply_markup=db.find_start_keyboard(user.id))
                     return ConversationHandler.END
-            else:
+            except DriverError:
+                oskooei_predictions = {'tmin': [None], 'tmax': [None], 'rh': [None], 'wind': [None], 'rain': [None]}
+                open_meteo_predictions = db.query_weather_prediction(user.id, farm)
+        else:
+            try:
                 weather_data = gpd.read_file(f"data/Iran{yesterday}_weather.geojson")
                 point = Point(longitude, latitude)
                 threshold = 0.1  # degrees
@@ -173,41 +170,83 @@ async def recv_weather(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     tmin_values , tmax_values , rh_values , spd_values , rain_values = [], [], [], [], []
                     for key, value in row.items():
                         if "tmin_Time=" in key:
-                            tmin_values.append(round(value, 1))
+                            tmin_values.append(round(value))
                         elif "tmax_Time=" in key:
-                            tmax_values.append(round(value, 1))
+                            tmax_values.append(round(value))
                         elif "rh_Time=" in key:
-                            rh_values.append(round(value, 1))
+                            rh_values.append(round(value))
                         elif "spd_Time=" in key:
-                            spd_values.append(round(value, 1))
+                            spd_values.append(round(value))
                         elif "rain_Time=" in key:
-                            rain_values.append(round(value, 1))
-                    caption = f"""
-باغدار عزیز 
-پیش‌بینی وضعیت آب و هوای باغ شما با نام <b>#{farm.replace(" ", "_")}</b> در سه روز آینده بدین صورت خواهد بود
-"""
-                    table([jday2, jday3, jday4], tmin_values[1:], tmax_values[1:], rh_values[1:], spd_values[1:], rain_values[1:])
-                    with open('table.png', 'rb') as image_file:
-                        await context.bot.send_photo(chat_id=user.id, photo=image_file, caption=caption, reply_markup=db.find_start_keyboard(user.id), parse_mode=ParseMode.HTML)
-                    # await context.bot.send_message(chat_id=user.id, text=weather_today, reply_markup=db.find_start_keyboard(user.id))
-                    username = user.username
-                    db.log_new_message(
-                        user_id=user.id,
-                        username=username,
-                        message=caption,
-                        function="req_weather_3",
-                        )
-                    db.log_activity(user.id, "received 3-day weather reports")
-                    return ConversationHandler.END
+                            rain_values.append(round(value))
+                    oskooei_predictions = {
+                        'tmin': tmin_values[1:], 'tmax': tmax_values[1:],
+                        'rh': rh_values[1:], 'wind': spd_values[1:],
+                        'rain': rain_values[1:]
+                    }
+                    open_meteo_predictions = db.query_weather_prediction(user.id, farm)
                 else:
                     await context.bot.send_message(chat_id=user.id, text="متاسفانه اطلاعات هواشناسی باغ شما در حال حاضر موجود نیست", reply_markup=db.find_start_keyboard(user.id))
                     return ConversationHandler.END
-        except DriverError:
-            logger.info(f"{user.id} requested today's weather. pesteh{today}_1.geojson was not found!")
-            await context.bot.send_message(chat_id=user.id, text="متاسفانه اطلاعات باغ شما در حال حاضر موجود نیست", reply_markup=db.find_start_keyboard(user.id))
-            return ConversationHandler.END
-        finally:
-            os.system("rm table.png")
+            except DriverError:
+                oskooei_predictions = {'tmin': [None], 'tmax': [None], 'rh': [None], 'wind': [None], 'rain': [None]}
+                open_meteo_predictions = db.query_weather_prediction(user.id, farm)
+                # You have created the data (oskooei & OpenMeteo, now process it):
+            
+        if not open_meteo_predictions:
+            farm_document = db.get_farms(user.id)[farm]
+            latitude = farm_document.get('location', {}).get('latitude')
+            longitude = farm_document.get('location', {}).get('longitude')
+            farm_dict = {
+                "_id": user.id,
+                "farm": farm,
+                "location": {"latitude": latitude, "longitude": longitude}
+            }
+            get_weather_report([farm_dict])
+            open_meteo_predictions = db.query_weather_prediction(user.id, farm)
+            if not open_meteo_predictions:
+                logger.warning(f"{user.id} requested weather prediction for {farm}. OpenMeteo API call was not successful!")
+                await context.bot.send_message(chat_id=user.id ,text="متاسفانه اطلاعات باغ شما در حال حاضر موجود نیست. لطفا پس از مدتی دوباره امتحان کنید.", reply_markup=db.find_start_keyboard(user.id))
+                return ConversationHandler.END
+            
+        labels, tmax_values, tmin_values, rain_sum_values, rain_probability_values, wind_speed_values, wind_direction_values, relative_humidity_values = open_meteo_predictions
+        days = [item for item in labels for _ in range(2)]
+        source = ['اروپا', 'ایران'] * len(labels)
+        tmin = [item for pair in zip_longest(tmin_values, oskooei_predictions['tmin']) for item in pair]
+        tmin = [item if item is not None else "--" for item in tmin]
+        tmax = [item for pair in zip_longest(tmax_values, oskooei_predictions['tmax']) for item in pair]
+        tmax = [item if item is not None else "--" for item in tmax]
+        wind_speed = [item for pair in zip_longest(wind_speed_values, oskooei_predictions['wind']) for item in pair]
+        wind_speed = [item if item is not None else "--" for item in wind_speed]
+        wind_direction = [item for pair in zip_longest(wind_direction_values, oskooei_predictions.get('wind_direction', [])) for item in pair]
+        wind_direction = [item if item is not None else "--" for item in wind_direction]
+        rain_probability = [item for pair in zip_longest(rain_probability_values, oskooei_predictions.get('rain_prob', [])) for item in pair]
+        rain_probability = [item if item is not None else "--" for item in rain_probability]
+        rain_sum = [item for pair in zip_longest(rain_sum_values, oskooei_predictions.get('rain', [])) for item in pair]
+        rain_sum = [item if item is not None else "--" for item in rain_sum]
+        rh = [item for pair in zip_longest(relative_humidity_values, oskooei_predictions['rh'], ) for item in pair]
+        rh = [item if item else "--" for item in rh]
+        weather_table(days=days, source=source, tmin=tmin, 
+                        tmax=tmax, wind_speed=wind_speed, wind_direction=wind_direction,
+                        rain_probability=rain_probability, rain_sum=rain_sum, rh=rh, 
+                        direct_comparisons=len([item for item in oskooei_predictions['tmin'] if item is not None]))
+        caption = f"""
+باغدار عزیز 
+پیش‌بینی وضعیت آب و هوای باغ شما با نام <b>#{farm.replace(" ", "_")}</b> در روزهای آینده بدین صورت خواهد بود
+"""
+        with open('table.png', 'rb') as image_file:
+            await context.bot.send_photo(chat_id=user.id, photo=image_file, caption=caption, reply_markup=db.find_start_keyboard(user.id), parse_mode=ParseMode.HTML, read_timeout=15, write_timeout=30)
+        os.system("rm table.png")
+        username = user.username
+        db.log_new_message(
+            user_id=user.id,
+            username=username,
+            message=caption,
+            function="req_weather",
+            )
+        db.log_activity(user.id, "received weather prediction")
+        return ConversationHandler.END
+                
     elif user_farms[farm].get("link-status") == "To be verified":
         reply_text = "لینک لوکیشن ارسال شده توسط شما هنوز تایید نشده است.\nلطفا تا بررسی ادمین آباد شکیبا باشید."
         await context.bot.send_message(chat_id=user.id, text=reply_text,reply_markup=db.find_start_keyboard(user.id))
