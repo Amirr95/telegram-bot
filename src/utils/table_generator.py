@@ -27,6 +27,8 @@ def weather_table(
 table.tg tbody tr.t-content:nth-child(even) td{background: #fbfbff;}
 .tg th{background-color:#f4f7ff;border-color:#aabcfe;border-style:solid;border-width:1px;color:#3f00e5;
   font-family:Arial, sans-serif;font-size:26px;font-weight:bold;overflow:hidden;padding:10px 5px;word-break:normal;}
+tr.span-2 {border-bottom: #aabcfe;}
+td.date-cell {border-bottom: #000;}
 .tg .tg-qivn{border-color:inherit;font-family:Impact, Charcoal, sans-serif !important;text-align:center;vertical-align:top}
 .tg .tg-s7u5{border-color:inherit;font-family:Impact, Charcoal, sans-serif !important;text-align:center;vertical-align:middle}
 </style>"""
@@ -60,7 +62,7 @@ table.tg tbody tr.t-content:nth-child(even) td{background: #fbfbff;}
 """
     num_rows = len(tmin)
 
-    row = """<tr class="t-content">
+    row = """<tr class="t-content {}">
     <td class="tg-qivn">{}</td>
     <td class="tg-qivn">{}</td>
     <td class="tg-qivn">{}</td>
@@ -84,14 +86,14 @@ table.tg tbody tr.t-content:nth-child(even) td{background: #fbfbff;}
       if not all([tmin[i] == "--", tmax[i] == "--", rh[i] == "--", wind_direction[i] == "--", wind_speed[i] == "--", rain_sum[i] == "--", rain_probability[i] == "--"]):
         if compare < direct_comparisons:
           if i % 2 == 0:
-            rows = rows + row.format(rh[i], rain_probability[i], rain_sum[i], wind_speed[i], wind_direction[i], tmin[i], tmax[i], source[i]) + date_cell_span_2.format(days[i])
+            rows = rows + row.format('span-2', rh[i], rain_probability[i], rain_sum[i], wind_speed[i], wind_direction[i], tmin[i], tmax[i], source[i]) + date_cell_span_2.format(days[i])
             
             compare += 1
           else:
-            rows = rows + row.format(rh[i], rain_probability[i], rain_sum[i], wind_speed[i], wind_direction[i], tmin[i], tmax[i], source[i]) + "</tr>"
+            rows = rows + row.format('', rh[i], rain_probability[i], rain_sum[i], wind_speed[i], wind_direction[i], tmin[i], tmax[i], source[i]) + "</tr>"
             
         else:
-          rows = rows + row.format(rh[i], rain_probability[i], rain_sum[i], wind_speed[i], wind_direction[i], tmin[i], tmax[i], source[i]) + date_cell.format(days[i])
+          rows = rows + row.format('', rh[i], rain_probability[i], rain_sum[i], wind_speed[i], wind_direction[i], tmin[i], tmax[i], source[i]) + date_cell.format(days[i])
           
     ## This is the old code that was used to generate the table without OpenMeteoWeather data
     # for i in range(num_rows):
@@ -123,7 +125,8 @@ table.tg tbody tr.t-content:nth-child(even) td{background: #fbfbff;}
         new_html += line + '\n'
 
     # Now new_html contains the HTML with duplicate lines removed
-
+    with open("table.html", "w") as f:
+        f.write(new_html)
     options = {"width": 1200}
     from_string(new_html, output, options=options)
 
