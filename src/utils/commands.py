@@ -26,6 +26,7 @@ from .keyboards import (
     start_keyboard_not_pesteh,
     start_keyboard_pesteh_kar,
     view_sp_advise_keyboard,
+    view_ch_advise_keyboard,
     view_advise_keyboard,
     farms_list_reply,
     weather_keyboard
@@ -220,6 +221,7 @@ async def change_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     jdate = jdatetime.datetime.now().strftime("%Y/%m/%d")
     jday2 = (jdatetime.datetime.now() + jdatetime.timedelta(days=1)).strftime("%Y/%m/%d")
     jday3 = (jdatetime.datetime.now() + jdatetime.timedelta(days=2)).strftime("%Y/%m/%d")
+    jday4 = (jdatetime.datetime.now() + jdatetime.timedelta(days=3)).strftime("%Y/%m/%d")
     try:
         await query.answer()
     except BadRequest:
@@ -230,6 +232,7 @@ async def change_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
     day_chosen = query.data.split("\n")[1]
     advise_3days = db.user_collection.find_one({"_id": user_id})["farms"][farm_name].get("advise")
     advise_sp_3days = db.user_collection.find_one({"_id": user_id})["farms"][farm_name].get("sp-advise")
+    advise_ch_3days = db.user_collection.find_one({"_id": user_id})["farms"][farm_name].get("ch-advise")
     if day_chosen=="today_advise":
         day = "امروز"
         if not advise_3days:
@@ -290,9 +293,39 @@ async def change_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
             advise = "توصیه‌ای برای این تاریخ موجود نیست"
         date = jday3
         db.log_activity(user_id, "chose sp-advice date", "day3")
+    elif day_chosen=="day1_ch_advise":
+        day = "فردا"
+        if not advise_ch_3days:
+            return
+        advise = advise_ch_3days["day1"]
+        keyboard = view_ch_advise_keyboard(farm_name)
+        if pd.isna(advise):
+            advise = "هشداری برای این تاریخ موجود نیست"
+        date = jday2
+        db.log_activity(user_id, "chose ch-advice date", "day1")
+    elif day_chosen=="day2_ch_advise":
+        day = "پس‌فردا"
+        if not advise_ch_3days:
+            return
+        advise = advise_ch_3days["day2"]
+        keyboard = view_ch_advise_keyboard(farm_name)
+        if pd.isna(advise):
+            advise = "هشداری برای این تاریخ موجود نیست"
+        date = jday3
+        db.log_activity(user_id, "chose ch-advice date", "day2")
+    elif day_chosen=="day3_ch_advise":
+        day = "پسان‌فردا"
+        if not advise_ch_3days:
+            return
+        advise = advise_ch_3days["day3"]
+        keyboard = view_ch_advise_keyboard(farm_name)
+        if pd.isna(advise):
+            advise = "هشداری برای این تاریخ موجود نیست"
+        date = jday4
+        db.log_activity(user_id, "chose ch-advice date", "day3")
     
     advise = f"""
-توصیه برداشت مربوط به باغ شما با نام <b>#{farm_name.replace(" ", "_")}</b> برای #{day} مورخ <b>{date}</b>:
+توصیه مربوط به باغ شما با نام <b>#{farm_name.replace(" ", "_")}</b> برای #{day} مورخ <b>{date}</b>:
 
 <pre>{advise}</pre>
 """

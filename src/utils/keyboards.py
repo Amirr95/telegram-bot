@@ -127,11 +127,11 @@ def start_keyboard_no_location():
     return ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
 
 def start_keyboard_not_pesteh():
-    keyboard = [ ['👨‍🌾 مدیریت کشت‌ها'],  ['🌟 سرویس VIP'] , ['🌦 پیش‌بینی هواشناسی', '🧪 شرایط محلول‌پاشی'],  ['📤 دعوت از دیگران', '📬 ارتباط با ما']]
+    keyboard = [ ['👨‍🌾 مدیریت کشت‌ها'],  ['🌟 سرویس VIP'], ['⚠️ هشدار سرمازدگی زمستانه'], ['🌦 پیش‌بینی هواشناسی', '🧪 شرایط محلول‌پاشی'],  ['📤 دعوت از دیگران', '📬 ارتباط با ما']]
     return ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
 
 def start_keyboard_pesteh_kar():
-    keyboard = [ ['🌦 پیش‌بینی هواشناسی'], ['توصیه قبل از برداشت', 'توصیه بعد از برداشت'], ['🧪 شرایط محلول‌پاشی'], ['❄️ نیاز سرمایی'], ['🏘 بازگشت به خانه'] ]
+    keyboard = [ ['🌦 پیش‌بینی هواشناسی'], ['⚠️ هشدار سرمازدگی زمستانه'], ['🧪 شرایط محلول‌پاشی', '❄️ نیاز سرمایی'], ['🏘 بازگشت به خانه'] ]
     return ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
 
 def home_keyboard_pesteh_kar():
@@ -168,6 +168,17 @@ def view_sp_advise_keyboard(farm_name: str):
         InlineKeyboardButton("توصیه پس‌فردا", callback_data=f'{farm_name}\nday3_sp_advise'),
         InlineKeyboardButton("توصیه فردا", callback_data=f'{farm_name}\nday2_sp_advise'),
         InlineKeyboardButton("توصیه امروز", callback_data=f'{farm_name}\ntoday_sp_advise'),
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    return reply_markup
+
+def view_ch_advise_keyboard(farm_name: str):
+    keyboard = [
+        [
+        InlineKeyboardButton("توصیه پسان‌فردا", callback_data=f'{farm_name}\nday3_ch_advise'),
+        InlineKeyboardButton("توصیه پس‌فردا", callback_data=f'{farm_name}\nday2_ch_advise'),
+        InlineKeyboardButton("توصیه فردا", callback_data=f'{farm_name}\nday1_ch_advise'),
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)

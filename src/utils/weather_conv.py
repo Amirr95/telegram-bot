@@ -23,6 +23,7 @@ import database
 from .keyboards import (
     farms_list_reply,
     view_sp_advise_keyboard,
+    view_ch_advise_keyboard,
     weather_keyboard
 )
 from .weather_api import get_weather_report
@@ -48,7 +49,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # Constants for ConversationHandler states
 
-RECV_WEATHER, RECV_SP = range(2)
+RECV_WEATHER, RECV_SP, RECV_CH = range(3)
 MENU_CMDS = ['✍️ ثبت نام', '📤 دعوت از دیگران', '🖼 مشاهده کشت‌ها', '➕ اضافه کردن کشت', '🗑 حذف کشت', '✏️ ویرایش کشت‌ها', '🌦 درخواست اطلاعات هواشناسی', '/start', '/stats', '/send', '/set']
 ###################################################################
 ####################### Initialize Database #######################
@@ -88,6 +89,26 @@ async def req_sp_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return RECV_SP
     else:
         db.log_activity(user.id, "error - no farm for sp report")
+        await context.bot.send_message(
+            chat_id=user.id,
+            text="شما هنوز باغی ثبت نکرده اید",
+            reply_markup=db.find_start_keyboard(user.id),
+        )
+        return ConversationHandler.END
+
+async def req_ch_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    db.log_activity(user.id, "request ch")
+    user_farms = db.get_farms(user.id)
+    if user_farms:
+        await context.bot.send_message(
+            chat_id=user.id,
+            text="یکی از باغ های خود را انتخاب کنید",
+            reply_markup=farms_list_reply(db, user.id),
+        )
+        return RECV_CH
+    else:
+        db.log_activity(user.id, "error - no farm for ch report")
         await context.bot.send_message(
             chat_id=user.id,
             text="شما هنوز باغی ثبت نکرده اید",
@@ -337,6 +358,9 @@ async def recv_sp(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     logger.info(f"user:{user.id} chat was not found!")
                 finally:
                     return ConversationHandler.END
+            else:
+                await context.bot.send_message(chat_id=user.id, text="متاسفانه باغ شما از محدوده پوشش آباد خارج است.", reply_markup=db.find_start_keyboard(user.id))
+                return ConversationHandler.END
         except DriverError:
             logger.info(f"{user.id} requested today's weather. pesteh{today}_AdviseSP.geojson was not found!")
             await context.bot.send_message(chat_id=user.id, text="متاسفانه اطلاعات باغ شما در حال حاضر موجود نیست", reply_markup=db.find_start_keyboard(user.id))
@@ -350,6 +374,106 @@ async def recv_sp(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                  reply_markup=db.find_start_keyboard(user.id))
         return ConversationHandler.END
 
+async def recv_ch(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    farm = update.message.text
+    user_farms = db.get_farms(user.id)
+    today = datetime.datetime.now().strftime("%Y%m%d")
+    yesterday = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y%m%d")
+    
+    day1 = (datetime.datetime.now() + datetime.timedelta(days=1)).strftime("%Y%m%d")
+    day2 = (datetime.datetime.now() + datetime.timedelta(days=2)).strftime("%Y%m%d")
+    day3 = (datetime.datetime.now() + datetime.timedelta(days=3)).strftime("%Y%m%d")
+    
+    jdate = (jdatetime.datetime.now() + jdatetime.timedelta(days=1)).strftime("%Y/%m/%d")
+    date_tag = 'فردا'
+
+    if farm == '↩️ بازگشت':
+        db.log_activity(user.id, "back")
+        await update.message.reply_text("عملیات لغو شد", reply_markup=db.find_start_keyboard(user.id))
+        return ConversationHandler.END
+    elif farm not in list(user_farms.keys()):
+        db.log_activity(user.id, "error - chose farm for ch report" , farm)
+        await update.message.reply_text("لطفا دوباره تلاش کنید. نام باغ اشتباه بود", reply_markup=db.find_start_keyboard(user.id))
+        return ConversationHandler.END
+    elif farm in MENU_CMDS:
+        db.log_activity(user.id, "error - answer in menu_cmd list", farm)
+        await update.message.reply_text("عمیلات قبلی لغو شد. لطفا دوباره تلاش کنید.", reply_markup=db.find_start_keyboard(user.id))
+        return ConversationHandler.END
+    db.log_activity(user.id, "chose farm for ch report", farm)
+    longitude = user_farms[farm]["location"]["longitude"]
+    latitude = user_farms[farm]["location"]["latitude"]
+    if longitude is not None:
+        try:
+            if datetime.time(7, 0).strftime("%H%M") <= datetime.datetime.now().strftime("%H%M") < datetime.time(20, 30).strftime("%H%M"):    
+                ch_data = gpd.read_file(f"data/Iran{today}_AdviseCH.geojson")
+            else:
+                ch_data = gpd.read_file(f"data/Iran{yesterday}_AdviseCH.geojson")
+                day3 = day2
+                day2 = day1
+                day1 = today
+                date_tag = 'امروز'
+                jdate = jdatetime.datetime.now().strftime("%Y/%m/%d")
+                
+            point = Point(longitude, latitude)
+            threshold = 0.1  # degrees
+            idx_min_dist = ch_data.geometry.distance(point).idxmin()
+            closest_coords = ch_data.geometry.iloc[idx_min_dist].coords[0]
+            if point.distance(Point(closest_coords)) <= threshold:
+                row = ch_data.iloc[idx_min_dist]
+                ch_3days = [row[f'Time={day1}'], row[f'Time={day2}'], row[f'Time={day3}']]
+                db.set_user_attribute(user.id, f"farms.{farm}.ch-advise", {"day1": ch_3days[0], "day2": ch_3days[1], "day3":ch_3days[2]})
+                try:
+                    if pd.isna(ch_3days[0]):
+                        advise = f"""
+باغدار عزیز 
+هشدار زیر با توجه به وضعیت آب و هوایی باغ شما با نام <b>#{farm.replace(" ", "_")}</b> برای #{date_tag} مورخ <b>{jdate}</b> ارسال می‌شود:
+
+<pre>توصیه‌ای برای این تاریخ موجود نیست</pre>
+
+<i>می‌توانید با استفاده از دکمه‌های زیر توصیه‌‌های مرتبط با روزهای آینده را مشاهده کنید.</i>
+"""
+                    else:
+                        advise = f"""
+باغدار عزیز 
+هشدار زیر با توجه به وضعیت آب و هوایی باغ شما با نام <b>#{farm.replace(" ", "_")}</b> برای #{date_tag} مورخ <b>{jdate}</b> ارسال می‌شود:
+
+<pre>{ch_3days[0]}</pre>
+
+<i>می‌توانید با استفاده از دکمه‌های زیر توصیه‌‌های مرتبط با روزهای آینده را مشاهده کنید.</i>
+"""
+                    await context.bot.send_message(chat_id=user.id, text=advise, reply_markup=view_ch_advise_keyboard(farm), parse_mode=ParseMode.HTML)
+                    username = user.username
+                    db.log_new_message(
+                        user_id=user.id,
+                        username=username,
+                        message=advise,
+                        function="send_advice",
+                        )
+                    db.log_activity(user.id, "received ch advice")
+                except Forbidden:
+                    db.set_user_attribute(user.id, "blocked", True)
+                    logger.info(f"user:{user.id} has blocked the bot!")
+                except BadRequest:
+                    logger.info(f"user:{user.id} chat was not found!")
+                finally:
+                    return ConversationHandler.END
+            else:
+                await context.bot.send_message(chat_id=user.id, text="متاسفانه باغ شما از محدوده پوشش آباد خارج است.", reply_markup=db.find_start_keyboard(user.id))
+                return ConversationHandler.END
+        except DriverError:
+            logger.info(f"{user.id} requested today's ch advice. Iran{today}_AdviseCH.geojson was not found!")
+            await context.bot.send_message(chat_id=user.id, text="متاسفانه اطلاعات باغ شما در حال حاضر موجود نیست", reply_markup=db.find_start_keyboard(user.id))
+            return ConversationHandler.END
+    elif user_farms[farm].get("link-status") == "To be verified":
+        reply_text = "لینک لوکیشن ارسال شده توسط شما هنوز تایید نشده است.\nلطفا تا بررسی ادمین آباد شکیبا باشید."
+        await context.bot.send_message(chat_id=user.id, text=reply_text,reply_markup=db.find_start_keyboard(user.id))
+        return ConversationHandler.END
+    else:
+        await context.bot.send_message(chat_id=user.id, text="موقعیت باغ شما ثبت نشده است. لظفا پیش از درخواست اطلاعات نسبت به ثبت موققعیت اقدام فرمایید.",
+                                 reply_markup=db.find_start_keyboard(user.id))
+        return ConversationHandler.END
+
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -358,10 +482,12 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 weather_req_conv_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex('🌦 پیش‌بینی هواشناسی'), req_weather_data),
-                      MessageHandler(filters.Regex('🧪 شرایط محلول‌پاشی'), req_sp_data)],
+                      MessageHandler(filters.Regex('🧪 شرایط محلول‌پاشی'), req_sp_data),
+                      MessageHandler(filters.Regex('⚠️ هشدار سرمازدگی زمستانه'), req_ch_data)],
         states={
             RECV_WEATHER: [MessageHandler(filters.TEXT , recv_weather)],
-            RECV_SP: [MessageHandler(filters.TEXT , recv_sp)]
+            RECV_SP: [MessageHandler(filters.TEXT , recv_sp)],
+            RECV_CH: [MessageHandler(filters.TEXT , recv_ch)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
