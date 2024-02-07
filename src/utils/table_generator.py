@@ -13,7 +13,8 @@ def weather_table(
     wind_direction: List[float],
     wind_speed: List[float],
     rain_sum: List[float],
-    rain_probability: List[float],
+    snow_sum: list[float],
+    precip_probability: List[float],
     direct_comparisons: int,
     output: str = "table.png",
 ) -> None:
@@ -38,7 +39,7 @@ td.date-cell {border-bottom: #000;}
 <thead>
   <tr>
     <th class="tg-s7u5" rowspan="2">(٪) رطوبت</th>
-    <th class="tg-qivn" colspan="2">بارش</th>
+    <th class="tg-qivn" colspan="3">بارش</th>
     <th class="tg-qivn" colspan="2">(Km/h) باد</th>
     <th class="tg-qivn" colspan="2">(&deg;C) دما</th>
     <th class="tg-s7u5" rowspan="2">منبع</th>
@@ -46,7 +47,8 @@ td.date-cell {border-bottom: #000;}
   </tr>
   <tr>
     <th class="tg-qivn">(٪) احتمال</th>
-    <th class="tg-qivn">م م</th>
+    <th class="tg-qivn">باران<br>(م م)</th>
+    <th class="tg-qivn">برف<br>(س م)</th>
     <th class="tg-qivn">سرعت</th>
     <th class="tg-qivn">جهت</th>
     <th class="tg-qivn">کمینه</th>
@@ -70,6 +72,7 @@ td.date-cell {border-bottom: #000;}
     <td class="tg-qivn">{}</td>
     <td class="tg-qivn">{}</td>
     <td class="tg-qivn">{}</td>
+    <td class="tg-qivn">{}</td>
     <td class="tg-qivn">{}</td>"""
     
     date_cell_span_2 = """
@@ -83,17 +86,17 @@ td.date-cell {border-bottom: #000;}
     rows = ""
     compare = 0
     for i in range(num_rows):
-      if not all([tmin[i] == "--", tmax[i] == "--", rh[i] == "--", wind_direction[i] == "--", wind_speed[i] == "--", rain_sum[i] == "--", rain_probability[i] == "--"]):
+      if not all([tmin[i] == "--", tmax[i] == "--", rh[i] == "--", wind_direction[i] == "--", wind_speed[i] == "--", rain_sum[i] == "--", snow_sum[i] == "--", precip_probability[i] == "--"]):
         if compare < direct_comparisons:
           if i % 2 == 0:
-            rows = rows + row.format('span-2', rh[i], rain_probability[i], rain_sum[i], wind_speed[i], wind_direction[i], tmin[i], tmax[i], source[i]) + date_cell_span_2.format(days[i])
+            rows = rows + row.format('span-2', rh[i], precip_probability[i], rain_sum[i], snow_sum[i], wind_speed[i], wind_direction[i], tmin[i], tmax[i], source[i]) + date_cell_span_2.format(days[i])
             
             compare += 1
           else:
-            rows = rows + row.format('', rh[i], rain_probability[i], rain_sum[i], wind_speed[i], wind_direction[i], tmin[i], tmax[i], source[i]) + "</tr>"
+            rows = rows + row.format('', rh[i], precip_probability[i], rain_sum[i], snow_sum[i], wind_speed[i], wind_direction[i], tmin[i], tmax[i], source[i]) + "</tr>"
             
         else:
-          rows = rows + row.format('', rh[i], rain_probability[i], rain_sum[i], wind_speed[i], wind_direction[i], tmin[i], tmax[i], source[i]) + date_cell.format(days[i])
+          rows = rows + row.format('', rh[i], precip_probability[i], rain_sum[i], snow_sum[i], wind_speed[i], wind_direction[i], tmin[i], tmax[i], source[i]) + date_cell.format(days[i])
           
     ## This is the old code that was used to generate the table without OpenMeteoWeather data
     # for i in range(num_rows):
@@ -125,9 +128,9 @@ td.date-cell {border-bottom: #000;}
         new_html += line + '\n'
 
     # Now new_html contains the HTML with duplicate lines removed
-    with open("table.html", "w") as f:
-        f.write(new_html)
-    options = {"width": 1200}
+    # with open("table.html", "w") as f:
+    #     f.write(new_html)
+    options = {"width": 1400}
     from_string(new_html, output, options=options)
 
 

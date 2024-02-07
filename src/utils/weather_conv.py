@@ -230,7 +230,7 @@ async def recv_weather(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(chat_id=user.id ,text="متاسفانه اطلاعات باغ شما در حال حاضر موجود نیست. لطفا پس از مدتی دوباره امتحان کنید.", reply_markup=db.find_start_keyboard(user.id))
                 return ConversationHandler.END
             
-        labels, tmax_values, tmin_values, rain_sum_values, rain_probability_values, wind_speed_values, wind_direction_values, relative_humidity_values = open_meteo_predictions
+        labels, tmax_values, tmin_values, rain_sum_values, snow_sum_values, precip_probability_values, wind_speed_values, wind_direction_values, relative_humidity_values = open_meteo_predictions
         days = [item for item in labels for _ in range(2)]
         source = ['اروپا', 'ایران'] * len(labels)
         tmin = [item for pair in zip_longest(tmin_values, oskooei_predictions['tmin']) for item in pair]
@@ -241,16 +241,25 @@ async def recv_weather(update: Update, context: ContextTypes.DEFAULT_TYPE):
         wind_speed = [item if item is not None else "--" for item in wind_speed]
         wind_direction = [item for pair in zip_longest(wind_direction_values, oskooei_predictions.get('wind_direction', [])) for item in pair]
         wind_direction = [item if item is not None else "--" for item in wind_direction]
-        rain_probability = [item for pair in zip_longest(rain_probability_values, oskooei_predictions.get('rain_prob', [])) for item in pair]
-        rain_probability = [item if item is not None else "--" for item in rain_probability]
+        precip_probability = [item for pair in zip_longest(precip_probability_values, oskooei_predictions.get('precip_prob', [])) for item in pair]
+        precip_probability = [item if item is not None else "--" for item in precip_probability]
         rain_sum = [item for pair in zip_longest(rain_sum_values, oskooei_predictions.get('rain', [])) for item in pair]
         rain_sum = [item if item is not None else "--" for item in rain_sum]
+        snow_sum = [item for pair in zip_longest(snow_sum_values, oskooei_predictions.get('snow', [])) for item in pair]
+        snow_sum = [item if item is not None else "--" for item in snow_sum]
         rh = [item for pair in zip_longest(relative_humidity_values, oskooei_predictions['rh'], ) for item in pair]
         rh = [item if item else "--" for item in rh]
-        weather_table(days=days, source=source, tmin=tmin, 
-                        tmax=tmax, wind_speed=wind_speed, wind_direction=wind_direction,
-                        rain_probability=rain_probability, rain_sum=rain_sum, rh=rh, 
-                        direct_comparisons=len([item for item in oskooei_predictions['tmin'] if item is not None]))
+        weather_table(days=days, 
+                      source=source, 
+                      tmin=tmin, 
+                      tmax=tmax, 
+                      wind_speed=wind_speed, 
+                      wind_direction=wind_direction, 
+                      precip_probability=precip_probability,
+                      rain_sum=rain_sum,
+                      snow_sum=snow_sum,
+                      rh=rh, 
+                      direct_comparisons=len([item for item in oskooei_predictions['tmin'] if item is not None]))
         caption = f"""
 باغدار عزیز 
 پیش‌بینی وضعیت آب و هوای باغ شما با نام <b>#{farm.replace(" ", "_")}</b> در روزهای آینده بدین صورت خواهد بود

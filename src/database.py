@@ -233,7 +233,8 @@ class Database:
                           max_temp: list[float], 
                           min_temp: list[float], 
                           rain_sum: list[float], 
-                          rain_prob: list[float], 
+                          snow_sum: list[float],
+                          precipitation_probability: list[float], 
                           wind_speed: list[float], 
                           wind_direction: list[float],
                           relative_humidity: list[float]) -> None:
@@ -249,7 +250,8 @@ class Database:
                 "max_temp": max_temp,
                 "min_temp": min_temp,
                 "rain_sum": rain_sum,
-                "rain_prob": rain_prob,
+                "snow_sum": snow_sum,
+                "precipitation_probability": precipitation_probability,
                 "wind_speed": wind_speed,
                 "wind_direction": wind_direction,
                 "relative_humidity": relative_humidity
@@ -273,7 +275,8 @@ class Database:
         tmax_values: list = document.get("weather", {}).get("max_temp")
         tmin_values: list = document.get("weather", {}).get("min_temp")
         rain_sum: list = document.get("weather", {}).get("rain_sum")
-        rain_prob: list = document.get("weather", {}).get("rain_prob")
+        snow_sum: list = document.get("weather", {}).get("snow_sum")
+        precipitation_probability: list = document.get("weather", {}).get("precipitation_probability")
         wind_speed: list = document.get("weather", {}).get("wind_speed")
         wind_direction: list = document.get("weather", {}).get("wind_direction")
         relative_humidity: list = document.get("weather", {}).get("relative_humidity")
@@ -283,13 +286,13 @@ class Database:
             wind_direction = [degrees_to_direction(degrees) for degrees in wind_direction]
         
         # if any of the parameters are missing we need to make a new api call
-        if any(x is None for x in (labels, tmax_values, tmin_values, rain_sum, rain_prob, wind_speed, wind_direction, relative_humidity)):
+        if any(x is None for x in (labels, tmax_values, tmin_values, rain_sum, snow_sum, precipitation_probability, wind_speed, wind_direction, relative_humidity)):
             return None
         
         # Make sure that the weather document was added today.
         now = datetime.utcnow()
         if document.get("timestamp").date() == now.date():
-            return labels, tmax_values, tmin_values, rain_sum, rain_prob, wind_speed, wind_direction, relative_humidity
+            return labels, tmax_values, tmin_values, rain_sum, snow_sum, precipitation_probability, wind_speed, wind_direction, relative_humidity
         else:
             return None
     

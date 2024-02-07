@@ -25,7 +25,7 @@ def get_weather_report(farms: list[dict[str, any]] = located_farms) -> None:
             "latitude": farm["location"]["latitude"],
             "longitude": farm["location"]["longitude"],
             "hourly": "relative_humidity_2m",
-            "daily": ["temperature_2m_max","temperature_2m_min","precipitation_sum","precipitation_probability_max","wind_speed_10m_max","wind_direction_10m_dominant"],
+            "daily": ["temperature_2m_max","temperature_2m_min","rain_sum", "snowfall_sum","precipitation_probability_max","wind_speed_10m_max","wind_direction_10m_dominant"],
             "timezone": "GMT"
         }
         responses = om.weather_api(url=url, params=params)
@@ -39,20 +39,32 @@ def get_weather_report(farms: list[dict[str, any]] = located_farms) -> None:
         daily = response.Daily()
         max_temp = daily.Variables(0).ValuesAsNumpy()
         min_temp = daily.Variables(1).ValuesAsNumpy()
-        precipitation_sum = daily.Variables(2).ValuesAsNumpy()
-        precipitation_probability = daily.Variables(3).ValuesAsNumpy()
-        wind_speed = daily.Variables(4).ValuesAsNumpy()
-        wind_direction = daily.Variables(5).ValuesAsNumpy()
+        rain_sum = daily.Variables(2).ValuesAsNumpy()
+        snow_sum = daily.Variables(3).ValuesAsNumpy()
+        precipitation_probability = daily.Variables(4).ValuesAsNumpy()
+        wind_speed = daily.Variables(5).ValuesAsNumpy()
+        wind_direction = daily.Variables(6).ValuesAsNumpy()
         
         avg_humidity = [round(float(x)) for x in avg_humidity]
         max_temp = [round(float(x)) for x in max_temp]
         min_temp = [round(float(x)) for x in min_temp]
-        precipitation_sum = [round(float(x)) for x in precipitation_sum]
+        rain_sum = [round(float(x)) for x in rain_sum]
+        snow_sum = [round(float(x)) for x in snow_sum]
         precipitation_probability = [round(float(x)) for x in precipitation_probability]
         wind_speed = [round(float(x)) for x in wind_speed]
         wind_direction = [round(float(x)) for x in wind_direction]
 
-        db.load_weather_data(farm["_id"], farm["farm"], dt.datetime.now(), max_temp, min_temp, precipitation_sum, precipitation_probability, wind_speed, wind_direction, avg_humidity)        
+        db.load_weather_data(user_id=farm["_id"],
+                             farm_name=farm["farm"],
+                             timestamp=dt.datetime.now(),
+                             max_temp=max_temp,
+                             min_temp=min_temp,
+                             rain_sum=rain_sum,
+                             snow_sum=snow_sum,
+                             precipitation_probability=precipitation_probability,
+                             wind_speed=wind_speed,
+                             wind_direction=wind_direction,
+                             relative_humidity=avg_humidity)        
                 
         
 async def load_weather_to_db(context: ContextTypes.DEFAULT_TYPE):
