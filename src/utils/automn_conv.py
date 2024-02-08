@@ -107,7 +107,7 @@ async def ask_automn_month(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_text = f"این ساعت‌ها با توجه به موقعیت و زمان خزان ثبت‌شده توسط شما <b>({user_farms[farm].get('automn-time')})</b> برای باغ شما: #<b>{farm.replace(' ', '_')}</b> محاسبه شده‌اند"
             try:
                 hours = calculate_chilling_hours(user_farms[farm].get("automn-time"), user_farms[farm].get("location", {}).get("longitude"), user_farms[farm].get("location", {}).get("latitude"))
-                chilling_hours_table(["زیر هفت", "صفر تا هفت", "دینامیک", "یوتا"],
+                chilling_hours_table(["صفر تا هفت", "زیر هفت", "دینامیک", "یوتا"],
                                     [(jdatetime.date.today() - jdatetime.timedelta(days=1 )).strftime("%Y/%m/%d")] * 4,
                                     [hours["Chilling_Hours"], hours["Chilling_Hours_7"], hours["Dynamic"], hours["Utah"]],
                                     "chill-table.png")
