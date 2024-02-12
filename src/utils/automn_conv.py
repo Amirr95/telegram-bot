@@ -121,6 +121,15 @@ async def ask_automn_month(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 logger.info(f"{user.id} requested chilling hours. File was not found!")
                 await context.bot.send_message(chat_id=user.id, text="متاسفانه اطلاعات باغ شما در حال حاضر موجود نیست", reply_markup=db.find_start_keyboard(user.id))
                 return ConversationHandler.END
+            except IndexError:
+                logger.info(f"{user.id} requested chilling hours data for {farm} which is outside Iran\nLocation:{user_farms[farm].get('location')}!")
+                msg = """
+                متاسفانه مکان باغ شما خارج از مناطق تحت پوشش آباد است. شما می‌توانید از مسیر
+                <b>بازگشت به خانه --> مدیریت کشت‌ها --> ویرایش کشت‌ها</b> لوکیشن باغ خود را ویرایش کنید.
+                """
+                await context.bot.send_message(chat_id=user.id, text=msg, reply_markup=db.find_start_keyboard(user.id), parse_mode=ParseMode.HTML)
+                return ConversationHandler.END
+                
         else:
             db.log_activity(user.id, "error - chose farm for automn time" , farm)
             await update.message.reply_text("پیش از دریافت نیاز سرمایی باید مختصات باغ خود را ثبت کنید.", reply_markup=db.find_start_keyboard(user.id))
