@@ -736,6 +736,17 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         )
         num_post_harvest_advice_btn = len(list(post_harvest_advice_btn))
         num_post_harvest_advice_btn_unique = len(post_harvest_advice_btn.distinct("userID"))
+        ch_btn = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'request ch', 'timestamp': {'$lte': date, '$gte': last_date}}
+        )
+        num_ch_btn = len(list(ch_btn))
+        num_ch_btn_unique = len(ch_btn.distinct("userID"))
+        gdd_btn = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'request gdd', 'timestamp': {'$lte': date, '$gte': last_date}}
+        )
+        num_gdd_btn = len(list(gdd_btn))
+        num_gdd_btn_unique = len(gdd_btn.distinct("userID"))
+
         # farm_stats = self.farm_stats()
         logger.info("Querying location information...")
         location_info = self.get_users_with_location()
@@ -770,9 +781,11 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
             self.num_pre_harvest_farms(), #farm_stats["harvest_on"],
             num_cold_need_btn, num_cold_need_btn_unique,
             num_pre_harvest_advice_btn, num_pre_harvest_advice_btn_unique,
-            num_post_harvest_advice_btn, num_post_harvest_advice_btn_unique
+            num_post_harvest_advice_btn, num_post_harvest_advice_btn_unique,
+            num_ch_btn, num_ch_btn_unique,
+            num_gdd_btn, num_gdd_btn_unique,
         ]
-        self.stats_sheet.update(f"A{self.num_stat_rows+1}:BC{self.num_stat_rows+1}", [row])
+        self.stats_sheet.update(f"A{self.num_stat_rows+1}:BG{self.num_stat_rows+1}", [row])
         time.sleep(0.5)
 
     def update_invites_sheet(self):
@@ -803,13 +816,12 @@ def main():
     logger.info("Updating sms sheet...")
     sheet.update_sms_sheet()
     logger.info("SMS sheet finished updating")
-    
     logger.info("Adding missing users to activity sheet...")
     sheet.add_missing_users_to_activity_sheet()
     logger.info("Updating activity sheet...")
     sheet.update_activity_sheet()
     logger.info("Activity sheet finished updating")
-    
+   
     sheet.update_stats_sheet(date=date)
     logger.info("Finished updating stats sheet")
     sheet.update_invites_sheet()
