@@ -224,11 +224,13 @@ def main():
         interval=datetime.timedelta(days=1),
         # first=10,
         first=datetime.time(5, 30),
+        job_kwargs={"misfire_grace_time": 300}
     )
     job_queue.run_repeating(load_weather_to_db,
         interval=datetime.timedelta(hours=24),
         first=datetime.time(1, 30),
         # first=5
+        job_kwargs={"misfire_grace_time": 300}
     )
     job_queue.run_once(send_up_notice, when=5)
     

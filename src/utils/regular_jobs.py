@@ -136,7 +136,7 @@ async def send_todays_data(context: ContextTypes.DEFAULT_TYPE):
                 chat_id=admin,
                 text=f"{time} file was not found!",
             )
-        context.job_queue.run_once(missing_data_notification, when=datetime.timedelta(seconds=5), chat_id=5508856987, data={})
+        context.job_queue.run_once(missing_data_notification, when=datetime.timedelta(seconds=5), chat_id=5508856987, data={}, job_kwargs={"misfire_grace_time":3600})
         weather_data = None
     
     farms_list = db.get_farms_with_location() #  [ {_id, farm, location: {latitude, longitude} }, {...}, ...]
