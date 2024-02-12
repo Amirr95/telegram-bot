@@ -11,3 +11,5 @@ ftp*
 *.png
 *.json
 *.log*
+*.tif
+*.geojson
