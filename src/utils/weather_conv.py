@@ -3,6 +3,9 @@ from logging.handlers import RotatingFileHandler
 import datetime
 import jdatetime
 import geopandas as gpd
+import rasterio
+from rasterio.transform import rowcol
+import numpy as np
 import pandas as pd
 from shapely.geometry import Point
 from telegram import Update
@@ -49,7 +52,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # Constants for ConversationHandler states
 
-RECV_WEATHER, RECV_SP, RECV_CH = range(3)
+RECV_WEATHER, RECV_SP, RECV_CH, RECV_GDD = range(4)
 MENU_CMDS = ['✍️ ثبت نام', '📤 دعوت از دیگران', '🖼 مشاهده کشت‌ها', '➕ اضافه کردن کشت', '🗑 حذف کشت', '✏️ ویرایش کشت‌ها', '🌦 درخواست اطلاعات هواشناسی', '/start', '/stats', '/send', '/set']
 ###################################################################
 ####################### Initialize Database #######################
@@ -115,6 +118,24 @@ async def req_ch_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=db.find_start_keyboard(user.id),
         )
         return ConversationHandler.END
+
+async def req_gdd_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    db.log_activity(user.id, "request gdd")
+    if not db.check_if_user_has_pesteh(user.id):
+        await context.bot.send_message(
+            chat_id=user.id,
+            text="شما هنوز باغ پسته‌ای ثبت نکرده‌اید",
+            reply_markup=db.find_start_keyboard(user.id),
+        )
+        return ConversationHandler.END
+    else:
+        await context.bot.send_message(
+            chat_id=user.id,
+            text="یکی از باغ های خود را انتخاب کنید",
+            reply_markup=farms_list_reply(db, user.id, pesteh_kar=True),
+        )
+        return RECV_GDD
 
 async def recv_weather(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -483,6 +504,89 @@ async def recv_ch(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                  reply_markup=db.find_start_keyboard(user.id))
         return ConversationHandler.END
 
+async def recv_gdd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    farm = update.message.text
+    user_farms = db.get_farms(user.id)
+    today = datetime.datetime.now().strftime("%Y%m%d")
+    jdate = (jdatetime.datetime.now() + jdatetime.timedelta(days=1)).strftime("%Y/%m/%d")
+    if farm == '↩️ بازگشت':
+        db.log_activity(user.id, "back")
+        await update.message.reply_text("عملیات لغو شد", reply_markup=db.find_start_keyboard(user.id))
+        return ConversationHandler.END
+    elif farm not in list(user_farms.keys()):
+        db.log_activity(user.id, "error - chose farm for gdd report" , farm)
+        await update.message.reply_text("لطفا دوباره تلاش کنید. نام باغ اشتباه بود", reply_markup=db.find_start_keyboard(user.id))
+        return ConversationHandler.END
+    elif not user_farms[farm].get('product', '').startswith('پسته'):
+        db.log_activity(user.id, "error - chose a farm that doesn't have pesteh", farm)
+        await update.message.reply_text("عملیات لغو شد. این اطلاعات فقط برای باغ‌های پسته موجود است.", reply_markup=db.find_start_keyboard(user.id))
+        return ConversationHandler.END
+    elif farm in MENU_CMDS:
+        db.log_activity(user.id, "error - answer in menu_cmd list", farm)
+        await update.message.reply_text("عمیلات قبلی لغو شد. لطفا دوباره تلاش کنید.", reply_markup=db.find_start_keyboard(user.id))
+        return ConversationHandler.END
+    db.log_activity(user.id, "chose farm for gdd report", farm)
+    longitude = user_farms[farm]["location"]["longitude"]
+    latitude = user_farms[farm]["location"]["latitude"]
+    if longitude is not None:
+        try:
+            hours = {}
+            for method in ["GDD", "GDD2"]:
+                with rasterio.open(f"data/Daily_{method}.tif") as src:
+                    row, col = rowcol(src.transform, longitude, latitude)
+                    pixel_values = []
+                    for band in range(1, src.count + 1):
+                        pixel_values.append(src.read(band)[row, col])
+                pixel_values_filtered = np.array(pixel_values)[~np.isnan(pixel_values)]
+                hours[method] = round(sum(pixel_values_filtered))
+            
+            try:
+                msg = f"""
+میزان نیاز حرارتی تامین شده برای ظهور شفیره پروانه چوبخوار پسته در باغ شما با نام <b>#{farm.replace(" ", "_")}</b> تا تاریخ <b>{jdate}</b>:
+<pre>{hours.get("GDD")} درجه روز</pre>
+
+میزان نیاز حرارتی تامین شده برای حشره بالغ:
+<pre>{hours.get("GDD2")} درجه روز</pre>
+"""
+                await context.bot.send_message(chat_id=user.id, text=msg, reply_markup=db.find_start_keyboard(user.id), parse_mode=ParseMode.HTML)
+                username = user.username
+                db.log_new_message(
+                    user_id=user.id,
+                    username=username,
+                    message=msg,
+                    function="send_advice",
+                    )
+                db.log_activity(user.id, "received gdd advice")
+            except Forbidden:
+                db.set_user_attribute(user.id, "blocked", True)
+                logger.info(f"user:{user.id} has blocked the bot!")
+            except BadRequest:
+                logger.info(f"user:{user.id} chat was not found!")
+            finally:
+                return ConversationHandler.END
+            
+        except IndexError:
+            logger.info(f"{user.id} requested today's gdd data for {farm} which is outside Iran\nLocation:(lat:{latitude}, lng: {longitude})!")
+            msg = """
+            متاسفانه مکان باغ شما خارج از مناطق تحت پوشش آباد است. شما می‌توانید از مسیر
+            <b>بازگشت به خانه --> مدیریت کشت‌ها --> ویرایش کشت‌ها</b> لوکیشن باغ خود را ویرایش کنید.
+            """
+            await context.bot.send_message(chat_id=user.id, text=msg, reply_markup=db.find_start_keyboard(user.id), parse_mode=ParseMode.HTML)
+            return ConversationHandler.END
+        except OSError:
+            logger.info(f"{user.id} requested today's gdd advice. Geotiff file was not found!")
+            await context.bot.send_message(chat_id=user.id, text="متاسفانه اطلاعات باغ شما در حال حاضر موجود نیست", reply_markup=db.find_start_keyboard(user.id))
+            return ConversationHandler.END
+    elif user_farms[farm].get("link-status") == "To be verified":
+        reply_text = "لینک لوکیشن ارسال شده توسط شما هنوز تایید نشده است.\nلطفا تا بررسی ادمین آباد شکیبا باشید."
+        await context.bot.send_message(chat_id=user.id, text=reply_text,reply_markup=db.find_start_keyboard(user.id))
+        return ConversationHandler.END
+    else:
+        await context.bot.send_message(chat_id=user.id, text="موقعیت باغ شما ثبت نشده است. لظفا پیش از درخواست اطلاعات نسبت به ثبت موققعیت اقدام فرمایید.",
+                                 reply_markup=db.find_start_keyboard(user.id))
+        return ConversationHandler.END
+
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -492,11 +596,13 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 weather_req_conv_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex('🌦 پیش‌بینی هواشناسی'), req_weather_data),
                       MessageHandler(filters.Regex('🧪 شرایط محلول‌پاشی'), req_sp_data),
-                      MessageHandler(filters.Regex('⚠️ هشدار سرمازدگی زمستانه'), req_ch_data)],
+                      MessageHandler(filters.Regex('⚠️ هشدار سرمازدگی زمستانه'), req_ch_data),
+                      MessageHandler(filters.Regex('🌡 نیاز حرارتی پروانه چوبخوار'), req_gdd_data)],
         states={
             RECV_WEATHER: [MessageHandler(filters.TEXT , recv_weather)],
             RECV_SP: [MessageHandler(filters.TEXT , recv_sp)],
             RECV_CH: [MessageHandler(filters.TEXT , recv_ch)],
+            RECV_GDD: [MessageHandler(filters.TEXT , recv_gdd)]
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )

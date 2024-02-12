@@ -131,7 +131,7 @@ def start_keyboard_not_pesteh():
     return ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
 
 def start_keyboard_pesteh_kar():
-    keyboard = [ ['🌦 پیش‌بینی هواشناسی'], ['⚠️ هشدار سرمازدگی زمستانه'], ['🧪 شرایط محلول‌پاشی', '❄️ نیاز سرمایی'], ['🏘 بازگشت به خانه'] ]
+    keyboard = [ ['🌦 پیش‌بینی هواشناسی'], ['⚠️ هشدار سرمازدگی زمستانه', '🌡 نیاز حرارتی پروانه چوبخوار'], ['🧪 شرایط محلول‌پاشی', '❄️ نیاز سرمایی'], ['🏘 بازگشت به خانه'] ]
     return ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
 
 def home_keyboard_pesteh_kar():
