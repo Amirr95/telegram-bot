@@ -6,6 +6,7 @@ from telegram import (
 from telegram.ext import (
     CommandHandler,
     MessageHandler,
+    CallbackQueryHandler,
     filters,
     ContextTypes,
     ConversationHandler,
@@ -36,14 +37,56 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # Constants for ConversationHandler states
 ASK_FARM_NAME, ASK_LONGITUDE, ASK_LATITUDE, HANDLE_LAT_LONG = range(4)
-
+HANDLE_LOCATION = 0
 MENU_CMDS = ['✍️ ثبت نام', '📤 دعوت از دیگران', '🖼 مشاهده کشت‌ها', '➕ اضافه کردن کشت', '🗑 حذف کشت', '✏️ ویرایش کشت‌ها', '🌦 درخواست اطلاعات هواشناسی', '/start', '/stats', '/send', '/set']
 ###################################################################
 ####################### Initialize Database #######################
 db = database.Database()
 ADMIN_LIST = db.get_admins()
 ###################################################################
+async def cq_set_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    admin = query.from_user
+    try:
+        await query.answer()
+    except BadRequest:
+        logger.error(f"query.answer() caused BadRequest error. user: {query.message.chat.id}")
+    target_user = int(query.data.split("\n")[1])
+    farm_name = query.data.split("\n")[2]
+    context.user_data['target_user'] = target_user
+    context.user_data['farm_name'] = farm_name
+    await context.bot.send_message(admin.id, text="آدرس کاربر را به این صورت وارد کن:\nlatitude,longitude ->\n37.4,59.35")
+    return HANDLE_LOCATION
 
+async def cq_handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    admin = update.effective_user
+    user_data = context.user_data
+    
+    target_user = user_data.get("target_user")
+    farm_name = user_data.get("farm_name")
+    
+    if not target_user or not farm_name:
+        await context.bot.send_message(admin.id, "اطلاعات یافت نشد. لطفا از /set استفاده کن.")
+        return ConversationHandler.END
+    
+    message = update.message.text
+    lat = message.split(',')[0]
+    long = message.split(',')[1]
+    
+    db.set_user_attribute(target_user, f"farms.{farm_name}.location.longitude", long)
+    db.set_user_attribute(target_user, f"farms.{farm_name}.location.latitude", lat)
+    db.set_user_attribute(target_user, f"farms.{farm_name}.link-status", "Verified")
+    db.log_activity(admin.id, "set a user's location", target_user)
+    for admin in ADMIN_LIST:
+        await context.bot.send_message(chat_id=admin, text=f"Location of farm {farm_name} belonging to {target_user} was set")
+        await context.bot.send_location(chat_id=admin, latitude=lat, longitude=long)
+    try:
+        await context.bot.send_message(chat_id=target_user, text=f"لوکیشن باغ شما با نام {farm_name} ثبت شد.")
+        await context.bot.send_location(chat_id=target_user, latitude=lat, longitude=long)
+    except (BadRequest, Forbidden):
+        db.set_user_attribute(target_user, "blocked", True)
+        await context.bot.send_message(chat_id=admin.id, text=f"Location wasn't set. User may have blocked the bot.")
+    return ConversationHandler.END    
 
 # Start of /set conversation
 async def set_loc(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -231,3 +274,11 @@ set_location_handler = ConversationHandler(
         },
         fallbacks=[CommandHandler("cancel", cancel)],
     )
+
+cq_set_location_handler = ConversationHandler(
+    entry_points=[CallbackQueryHandler(cq_set_location, pattern="^set-location")],
+    states={
+        HANDLE_LOCATION: [MessageHandler(filters.ALL, cq_handle_location)],
+    },
+    fallbacks=[CommandHandler("cancel", cancel)],
+)

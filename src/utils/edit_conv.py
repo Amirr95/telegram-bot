@@ -6,6 +6,8 @@ from telegram import (
     Update,
     ReplyKeyboardMarkup,
     ReplyKeyboardRemove,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
 )
 from telegram.ext import (
     ContextTypes,
@@ -413,8 +415,12 @@ async def handle_edit_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(reply_text, reply_markup=db.find_start_keyboard(user.id))
     context.job_queue.run_once(no_location_reminder, when=datetime.timedelta(hours=1),chat_id=user.id, data=user.username)    
     for admin in ADMIN_LIST:
+        data = f"set-location\n{user.id}\n{user_data['selected_farm']}"
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("ثبت لوکیشن", callback_data=data)]
+        ])
         try:
-            await context.bot.send_message(chat_id=admin, text=f"user {user.id} sent us a link for\nname:{user_data['selected_farm']}\n{text}")
+            await context.bot.send_message(chat_id=admin, text=f"user {user.id} sent us a link for\nname:{user_data['selected_farm']}\n{text}", reply_markup=keyboard)
         except BadRequest or Forbidden:
             logger.warning(f"admin {admin} has deleted the bot")
     return ConversationHandler.END

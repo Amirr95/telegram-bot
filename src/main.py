@@ -36,7 +36,7 @@ from utils.weather_api import load_weather_to_db
 from utils.delete_conv import delete_conv_handler
 from utils.register_conv import register_conv_handler
 from utils.view_conv import view_conv_handler
-from utils.set_location_conv import set_location_handler
+from utils.set_location_conv import set_location_handler, cq_set_location_handler
 from utils.admin import broadcast_handler, backup_send, stats_buttons, bot_stats
 from utils.commands import invite, start, change_day, harvest_off_conv_handler, harvest_on_conv_handler, invite_conv
 from utils.payment_funcs import payment_link, verify_payment, off_conv_handler, verify_conv_handler, create_coupon
@@ -212,7 +212,8 @@ def main():
     application.add_handler(CommandHandler("stats", bot_stats))
     application.add_handler(CommandHandler("today", backup_send))
     application.add_handler(CallbackQueryHandler(stats_buttons, pattern="^(member_count|member_count_change|excel_download|block_count|no_location_count|no_phone_count)$"))
-    application.add_handler(CallbackQueryHandler(show_remaining_hours, pattern="^gdd"))
+    application.add_handler(CallbackQueryHandler(show_remaining_hours, pattern="^chilling-hours"))
+    application.add_handler(cq_set_location_handler)
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(change_day))
 
