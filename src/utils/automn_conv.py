@@ -1,4 +1,4 @@
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     CommandHandler,
     MessageHandler,
@@ -25,7 +25,7 @@ from .keyboards import (
     automn_week,
     get_product_keyboard
 )
-from .table_generator import chilling_hours_table
+from .table_generator import chilling_hours_table, remaining_chilling_hours_table
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -61,7 +61,44 @@ def calculate_chilling_hours(automn_time: str, longitude: float, latitude: float
         start_band_index = automn_time_to_start_band_index.get(automn_time)    
         hours[method] = round(sum(pixel_values[start_band_index:]))
     return hours
-           
+
+
+async def show_remaining_hours(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Callback Query that generates a table showing the user how many hours remain
+    for their farm
+    """
+    query = update.callback_query
+    user = query.from_user
+    try:
+        await query.answer()
+    except BadRequest:
+        logger.error(f"query.answer() caused BadRequest error. user: {query.message.chat.id}")
+    hours = int(query.data.split("\n")[1])
+    pesteh_types = [
+        "کرمان - رقم ماده غالب کالیفرنیا",
+        "کله قوچی", 
+        "اوحدی (فندقی)", 
+        "احمدآقایی", 
+        "اکبری", 
+        "فندقی غفوری", 
+        "چروک"
+    ]
+    complete_hours = [1000, 600, 800, 1000, 1200, 1200, 1400]
+    hours_difference = [hours - el for el in complete_hours]
+    remaining_chilling_hours_table(pesteh_types, complete_hours, hours_difference, hours)
+    try:
+        caption = f"ساعات باقیمانده نیاز سرمایی ارقام مختلف پسته در باغ شما بر اساس روش <b>0 تا 7</b>"
+        with open('table.png', 'rb') as image_file:
+            await context.bot.send_photo(chat_id=user.id, photo=image_file, caption=caption, reply_markup=db.find_start_keyboard(user.id), parse_mode=ParseMode.HTML, read_timeout=15, write_timeout=30)
+        
+        db.log_activity(user.id, "received remaining hours info")
+    except Forbidden or BadRequest:
+        logger.info("encountered error trying to respond to CallbackQueryHandler")
+        db.log_activity(user.id, "error - couldn't receive remaining hours info")
+    except:
+        logger.info("Unexpected error") # Could be message not modified?
+        db.log_activity(user.id, "error - couldn't receive remaining hours info")
+    
 # START OF AUTOMN TIME CONVERSATION
 async def automn_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -111,8 +148,12 @@ async def ask_automn_month(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     [(jdatetime.date.today() - jdatetime.timedelta(days=1 )).strftime("%Y/%m/%d")] * 4,
                                     [hours["Chilling_Hours"], hours["Chilling_Hours_7"], hours["Dynamic"], hours["Utah"]],
                                     "chill-table.png")
+                data = f"gdd\n{hours['Chilling_Hours']}"
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("مشاهده نیازمندی رقم‌های مختلف", callback_data=data)]
+                ])
                 with open('chill-table.png', 'rb') as image_file:
-                    await context.bot.send_photo(chat_id=user.id, photo=image_file, caption=reply_text, reply_markup=db.find_start_keyboard(user.id), parse_mode=ParseMode.HTML)
+                    await context.bot.send_photo(chat_id=user.id, photo=image_file, caption=reply_text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
                 # db.log_activity(user.id, "automn time of farm was already set", farm)
                 db.log_activity(user.id, "received chilling hours report", hours)
                 # await update.message.reply_text(reply_text, reply_markup=db.find_start_keyboard(user.id))

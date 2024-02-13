@@ -41,7 +41,7 @@ from utils.admin import broadcast_handler, backup_send, stats_buttons, bot_stats
 from utils.commands import invite, start, change_day, harvest_off_conv_handler, harvest_on_conv_handler, invite_conv
 from utils.payment_funcs import payment_link, verify_payment, off_conv_handler, verify_conv_handler, create_coupon
 from utils.harvest_conv import harvest_conv_handler
-from utils.automn_conv import automn_conv_handler
+from utils.automn_conv import automn_conv_handler, show_remaining_hours
 
 # Enable logging
 logging.basicConfig(
@@ -212,7 +212,7 @@ def main():
     application.add_handler(CommandHandler("stats", bot_stats))
     application.add_handler(CommandHandler("today", backup_send))
     application.add_handler(CallbackQueryHandler(stats_buttons, pattern="^(member_count|member_count_change|excel_download|block_count|no_location_count|no_phone_count)$"))
-
+    application.add_handler(CallbackQueryHandler(show_remaining_hours, pattern="^gdd"))
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(change_day))
 

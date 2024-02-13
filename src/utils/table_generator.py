@@ -2,6 +2,7 @@ from imgkit import from_string
 from typing import List
 from itertools import zip_longest
 import re
+import jdatetime as jdt
 from .logger import logger
 
 def weather_table(
@@ -189,4 +190,79 @@ hours: {len(hours)} {hours}
     html = style + header + rows + ending
 
     options = {"width": 600}
+    from_string(html, output, options=options)
+
+def remaining_chilling_hours_table(
+    pesteh_types: List[str],
+    complete_hours: List[float],
+    hours_difference: List[float],
+    hours: int,
+    output: str = "table.png",
+) -> None:
+    date = (jdt.date.today() - jdt.timedelta(days=1 )).strftime("%Y/%m/%d")
+    style = """
+<style type="text/css">
+.tg  {border-collapse:collapse;border-spacing:0;width:100%}
+.tg td{border-style:solid;border-width:3px;direction:rtl;
+  font-family:Arial, sans-serif;font-size:25px;overflow:hidden;padding:10px 5px;word-break:normal;}
+.tg td.left-column{font-weight:bold; width:20%}
+.tg td.middle-column{font-weight:bold; width: 30%}
+.tg td.right-column{width:100%; text-align:center;}
+.tg th{border-style:solid;border-width:3px;direction:rtl;
+  font-family:Arial, sans-serif;font-size:25px;font-weight:normal;overflow:hidden;padding:10px 5px;word-break:normal;}
+.tg .tg-qivn{border-color:inherit;font-family:Impact, Charcoal, sans-serif !important;text-align:center;}
+</style>
+"""
+
+    header = """
+<table class="tg">
+<thead>
+  <tr>
+    <th class="tg-qivn">باقیمانده نیاز سرمایی<br>(ساعت)</th>
+    <th class="tg-qivn">حد نیاز سرمایی <br>مدل ساعت سرمایی صفر تا هفت</th>
+    <th class="tg-qivn">رقم پسته</th>
+  </tr>
+</thead>
+<tbody>"""
+
+    ending = """
+</tbody>
+<tfoot>
+    <tr>
+      <td style="background-color:chartreuse">نیاز سرمایی تامین شده</td>
+      <td rowspan="2" colspan="2" style="text-align: center !important; overflow:visible">
+سرمای تامین شده باغ شما تا تاریخ {} بر حسب ساعت: {}
+</td>
+    </tr>
+    <tr>
+      <td style="background-color:chocolate">نیاز سرمایی تامین نشده</td>
+    </tr>
+  </tfoot>
+</table>
+""".format(date, hours)
+    num_rows = len(pesteh_types)
+
+    row_red = """<tr>
+      <td class="tg-qivn left-column" style="background-color:chocolate">{}</td>
+      <td class="tg-qivn middle-column">{}</td>
+      <td class="right-column">{}</td>
+    </tr>"""
+  
+    row_green = """<tr>
+      <td class="tg-qivn left-column" style="background-color:chartreuse">{}</td>
+      <td class="tg-qivn middle-column">{}</td>
+      <td class="right-column">{}</td>
+    </tr>"""
+
+    rows = ""
+    for i in range(num_rows):
+      if hours_difference[i] < 0:
+        rows = rows + row_red.format(hours_difference[i], complete_hours[i], pesteh_types[i])
+      else:
+        rows = rows + row_green.format(hours_difference[i], complete_hours[i], pesteh_types[i])
+    
+    html = style + header + rows + ending
+    # with open("table2.html", "w") as file:
+    #   file.write(html)
+    options = {"width": 1600}
     from_string(html, output, options=options)
