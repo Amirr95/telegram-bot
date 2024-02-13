@@ -741,6 +741,13 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
         )
         num_ch_btn = len(list(ch_btn))
         num_ch_btn_unique = len(ch_btn.distinct("userID"))
+        
+        remaining_ch_btn = self.bot_collection.find(
+            {'type': 'activity logs', 'user_activity': 'clicked remaining hours button', 'timestamp': {'$lte': date, '$gte': last_date}}
+        )
+        num_remaining_ch_btn = len(list(remaining_ch_btn))
+        num_remaining_ch_btn_unique = len(remaining_ch_btn.distinct("userID"))
+        
         gdd_btn = self.bot_collection.find(
             {'type': 'activity logs', 'user_activity': 'request gdd', 'timestamp': {'$lte': date, '$gte': last_date}}
         )
@@ -784,8 +791,9 @@ Also self.sheet_values should get updated. would that cause any inconsistencies?
             num_post_harvest_advice_btn, num_post_harvest_advice_btn_unique,
             num_ch_btn, num_ch_btn_unique,
             num_gdd_btn, num_gdd_btn_unique,
+            num_remaining_ch_btn, num_remaining_ch_btn_unique
         ]
-        self.stats_sheet.update(f"A{self.num_stat_rows+1}:BG{self.num_stat_rows+1}", [row])
+        self.stats_sheet.update(f"A{self.num_stat_rows+1}:BI{self.num_stat_rows+1}", [row])
         time.sleep(0.5)
 
     def update_invites_sheet(self):
