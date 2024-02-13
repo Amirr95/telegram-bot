@@ -69,6 +69,7 @@ async def show_remaining_hours(update: Update, context: ContextTypes.DEFAULT_TYP
     """
     query = update.callback_query
     user = query.from_user
+    db.log_activity(user.id, "clicked remaining hours button")
     try:
         await query.answer()
     except BadRequest:
@@ -148,7 +149,7 @@ async def ask_automn_month(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                     [(jdatetime.date.today() - jdatetime.timedelta(days=1 )).strftime("%Y/%m/%d")] * 4,
                                     [hours["Chilling_Hours"], hours["Chilling_Hours_7"], hours["Dynamic"], hours["Utah"]],
                                     "chill-table.png")
-                data = f"gdd\n{hours['Chilling_Hours']}"
+                data = f"chilling-hours\n{hours['Chilling_Hours']}"
                 keyboard = InlineKeyboardMarkup([
                     [InlineKeyboardButton("مشاهده نیازمندی رقم‌های مختلف", callback_data=data)]
                 ])
