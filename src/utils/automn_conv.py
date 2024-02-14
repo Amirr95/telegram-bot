@@ -84,7 +84,7 @@ async def show_remaining_hours(update: Update, context: ContextTypes.DEFAULT_TYP
         "فندقی غفوری", 
         "چروک"
     ]
-    complete_hours = [1000, 600, 800, 1000, 1200, 1200, 1400]
+    complete_hours = [1000, 600, 800, 800, 1200, 1200, 1400]
     hours_difference = [hours - el for el in complete_hours]
     remaining_chilling_hours_table(pesteh_types, complete_hours, hours_difference, hours)
     try:

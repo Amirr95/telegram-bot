@@ -217,29 +217,28 @@ def remaining_chilling_hours_table(
     header = """
 <table class="tg">
 <thead>
+    <tr>
+          <td style="background-color:chartreuse">نیاز سرمایی تامین شده</td>
+          <td rowspan="2" colspan="2" style="text-align: center !important; overflow:visible">
+    سرمای تامین شده باغ شما تا تاریخ {} بر حسب ساعت: {}
+    </td>
+    </tr>
+    <tr>
+      <td style="background-color:chocolate">نیاز سرمایی تامین نشده</td>
+    </tr>
   <tr>
     <th class="tg-qivn">باقیمانده نیاز سرمایی<br>(ساعت)</th>
     <th class="tg-qivn">حد نیاز سرمایی <br>مدل ساعت سرمایی صفر تا هفت</th>
     <th class="tg-qivn">رقم پسته</th>
   </tr>
 </thead>
-<tbody>"""
+<tbody>
+""".format(date, hours)
 
     ending = """
 </tbody>
-<tfoot>
-    <tr>
-      <td style="background-color:chartreuse">نیاز سرمایی تامین شده</td>
-      <td rowspan="2" colspan="2" style="text-align: center !important; overflow:visible">
-سرمای تامین شده باغ شما تا تاریخ {} بر حسب ساعت: {}
-</td>
-    </tr>
-    <tr>
-      <td style="background-color:chocolate">نیاز سرمایی تامین نشده</td>
-    </tr>
-  </tfoot>
 </table>
-""".format(date, hours)
+"""
     num_rows = len(pesteh_types)
 
     row_red = """<tr>
