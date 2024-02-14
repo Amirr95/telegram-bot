@@ -70,8 +70,12 @@ async def cq_handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return ConversationHandler.END
     
     message = update.message.text
-    lat = message.split(',')[0]
-    long = message.split(',')[1]
+    try:
+        lat = float(message.split(',')[0])
+        long = float(message.split(',')[1])
+    except (IndexError, ValueError):
+        await context.bot.send_message(admin.id, "لوکیشن ارسالی باید به صورت زیر باشد:\n`latitude,longitude`\nدوباره دکمه را بزن وامتحان کن.", parse_mode=ParseMode.MARKDOWN)
+        return ConversationHandler.END
     
     db.set_user_attribute(target_user, f"farms.{farm_name}.location.longitude", long)
     db.set_user_attribute(target_user, f"farms.{farm_name}.location.latitude", lat)
