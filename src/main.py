@@ -138,7 +138,7 @@ async def contact_us(update: Update, context: ContextTypes.DEFAULT_TYPE):
 راه‌های ارتباط با ما:
 
 ادمین: @agriiadmin
-شماره تلفن: 02164063410
+شماره تلفن: 02164063399
 آدرس: تهران، ضلع غربی دانشگاه شریف، برج فناوری بنتک
 """
     await update.message.reply_text(text, reply_markup=db.find_start_keyboard(user.id))

@@ -67,7 +67,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 و سپس باغ های خود را ثبت کنید.
 راه‌های ارتباطی با ما:
 ادمین: @agriiadmin
-تلفن ثابت: 02164063410
+تلفن ثابت: 02164063399
                 """
         args = context.args
         if args:
@@ -83,7 +83,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # برای دریافت توصیه‌های کاربردی هواشناسی از قبیل سرمازدگی، گرمازدگی و آفتاب‌سوختگی، خسارت باد، نیاز سرمایی و … باغ های خد را در بات ثبت کنید.
 # راه‌های ارتباطی با ما:
 # ادمین: @agriiadmin
-# تلفن ثابت: 02164063410
+# تلفن ثابت: 02164063399
 #                 """
 #         await update.message.reply_text(reply_text, reply_markup=start_keyboard())
         if not db.check_if_user_has_farms(user.id, user_document):
