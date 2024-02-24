@@ -13,11 +13,14 @@ from telegram.ext import (
 from telegram.constants import ParseMode
 
 import datetime
+import re
 
 import database
 
 from .logger import logger
 from .sms_funcs import sms_no_farm
+from .number_transformer import persian_to_english
+
 # Constants for ConversationHandler states
 ASK_PHONE, HANDLE_PHONE = range(2)
 MENU_CMDS = ['✍️ ثبت نام', '📤 دعوت از دیگران', '🖼 مشاهده کشت‌ها', '➕ اضافه کردن کشت', '🗑 حذف کشت', '✏️ ویرایش کشت‌ها', '🌦 درخواست اطلاعات هواشناسی', '/start', '/stats', '/send', '/set']
@@ -69,10 +72,20 @@ async def handle_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db.log_activity(user.id, "error - answer in menu_cmd list", phone)
         await update.message.reply_text("عمیلات قبلی لغو شد. لطفا دوباره تلاش کنید.", reply_markup=db.find_start_keyboard(user.id))
         return ConversationHandler.END
-    if not phone or not phone.isdigit() or len(phone) != 11:
+    if not phone:
         db.log_activity(user.id, "error - entered phone", phone)
         await update.message.reply_text("شماره وارد شده مورد تایید نیست. لطفا دوباره شماره تلفن خود را وارد کنید: \nلغو با /cancel")
         return HANDLE_PHONE
+    phone = persian_to_english(phone)
+    if not re.match(r'^(09)\d{9}$', phone):
+        msg = "لطفا شماره تلفن را مانند زیر وارد کنید:\n<b>09123456789</b>\n\nلغو با /cancel"
+        await update.message.reply_text(msg, parse_mode=ParseMode.HTML)
+        return HANDLE_PHONE
+    if db.check_if_phone_number_exists(phone):
+        db.log_activity(user.id, "error - phone number exists", phone)
+        await update.message.reply_text("شماره تلفن وارد شده قبلا ثبت شده است. لطفا شماره تلفن دیگری وارد کنید: \nلغو با /cancel")
+        return HANDLE_PHONE
+    
     db.log_activity(user.id, "entered phone", phone)
     user_data["phone"] = phone
     db.set_user_attribute(user_id=user.id, key="phone-number", value=phone)

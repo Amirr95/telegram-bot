@@ -29,6 +29,7 @@ from .keyboards import (
     edit_keyboard_reply,
     back_button,
     )
+from .number_transformer import extract_number
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -308,6 +309,11 @@ async def handle_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not new_area:
             db.log_activity(user.id, "error - edit area")
             await update.message.reply_text("لطفا مساحت جدید را وارد کنید")
+            return HANDLE_EDIT
+        new_area = extract_number(new_area)
+        if not new_area:
+            db.log_activity(user.id, "error - edit area", new_area)
+            await update.message.reply_text("لطفا مساحت را به صورت عددی با واحد هکتار وارد کنید")
             return HANDLE_EDIT
         db.set_user_attribute(user.id, f"farms.{farm}.area", new_area)
         reply_text = f"مساحت جدید {farm} با موفقیت ثبت شد."

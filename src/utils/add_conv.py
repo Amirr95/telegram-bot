@@ -30,6 +30,7 @@ from .keyboards import (
 )
 from .logger import logger
 from .sms_funcs import sms_incomplete_farm
+from .number_transformer import extract_number
 # Constants for ConversationHandler states
 (
     ASK_TYPE,
@@ -190,7 +191,7 @@ async def ask_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Receives the farm name"""
+    """Receives the products"""
     user = update.effective_user
     user_data = context.user_data
     land_type = user_data["land_type"]
@@ -275,6 +276,8 @@ async def ask_province(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
     product = message_text.strip()
+    if product.startswith("پسته"):
+        product = "پسته"
     farm_name = user_data["farm_name"]
     db.set_user_attribute(user.id, f"farms.{farm_name}.product", product)
     db.log_activity(user.id, "chose product", f"{product}")
@@ -398,6 +401,12 @@ async def ask_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("لطفا متراژ کشت خود را به هکتار وارد کنید:", reply_markup=back_button())
         return ASK_LOCATION
     area = update.message.text.strip()
+    area = extract_number(area)
+    if not area:
+        db.log_activity(user.id, "error - area", update.message.text)
+        await update.message.reply_text("لطفا متراژ کشت خود را به صورت عددی با واحد هکتار وارد کنید مثلا:\n<b>1.5</b>", parse_mode=ParseMode.HTML, reply_markup=back_button())
+        return ASK_LOCATION
+    user_data["area"] = area
     farm_name = user_data["farm_name"]
     db.set_user_attribute(user.id, f"farms.{farm_name}.area", area)
     db.log_activity(user.id, "entered area", f"{area}")

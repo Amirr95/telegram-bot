@@ -35,6 +35,12 @@ class Database:
             else:
                 return False
 
+    def check_if_phone_number_exists(self, phone_number: str):
+        if self.user_collection.count_documents({"phone-number": phone_number}) > 0:
+            return True
+        else:
+            return False
+
     def check_if_user_is_registered(self, user_id: int, required_keys: list = REQUIRED_FIELDS):
         if not self.check_if_user_exists(user_id=user_id):
             return False
