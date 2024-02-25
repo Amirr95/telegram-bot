@@ -61,7 +61,7 @@ async def msg_status_method(msg_id: str):
     }
     
     async with aiohttp.ClientSession() as session:
-        async with session.post(url, data=payload, headers=headers, timeout=5) as response:
+        async with session.post(url, data=payload, headers=headers, timeout=30) as response:
             json = await response.json()
             return json[0]
         
