@@ -44,7 +44,7 @@ async def send_sms_method(text: str, receiver: str)->list[int]:
     }
     
     async with aiohttp.ClientSession() as session:
-        async with session.post(url, data=payload, headers=headers, timeout=5) as response:
+        async with session.post(url, data=payload, headers=headers, timeout=30) as response:
             json = await response.json()
             # logger.info(f"response: {response}\ndata: {data}\njson: {json}")
             return json
