@@ -151,8 +151,16 @@ async def send_todays_data(context: ContextTypes.DEFAULT_TYPE):
 راهنمایی: 
 @agriiadmin
     """
-        try: 
-            await context.bot.send_message(chat_id=user, text=message, reply_markup=db.find_start_keyboard(user), parse_mode=ParseMode.HTML)
+        try:
+            logger.info(f"sending today's data update message to {user}")
+            await context.bot.send_message(chat_id=user, 
+                                           text=message, 
+                                           reply_markup=db.find_start_keyboard(user), 
+                                           parse_mode=ParseMode.HTML, 
+                                           read_timeout=30, 
+                                           write_timeout=30, 
+                                           connect_timeout=30)
+            logger.info(f"sent today's data update message to {user}")
             username = db.user_collection.find_one({"_id": user})["username"]
             db.set_user_attribute(user, "blocked", False)
             db.log_new_message(
