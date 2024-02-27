@@ -1,7 +1,7 @@
 import re
 
 
-def persian_to_english(string):
+def persian_to_english(string: str) -> str:
     """
     Translates Persian numbers to English numbers.
 
@@ -11,10 +11,11 @@ def persian_to_english(string):
     Returns:
         `str`: The string with Persian numbers translated to English numbers.
     """
-    persian_numbers = '۰۱۲۳۴۵۶۷۸۹'
-    english_numbers = '0123456789'
+    persian_numbers = '۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩'
+    english_numbers = '01234567890123456789'
     translation_table = str.maketrans(persian_numbers, english_numbers)
     return string.translate(translation_table)
+
 
 def extract_number(string: str) -> float:
     """
