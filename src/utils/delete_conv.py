@@ -13,6 +13,7 @@ from telegram.ext import (
 from telegram.constants import ParseMode
 import warnings
 import database
+from pg_sync import check_user_in_postgres, delete_farm_from_pg
 from .keyboards import (
     manage_farms_keyboard,
     farms_list_reply,
@@ -115,6 +116,7 @@ async def confirm_delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def delete_farm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = context.user_data
     user = update.effective_user
+    phone_number = db.get_user_attribute(user.id, "phone-number")
     farm = user_data["farm_to_delete"]
     answer = update.message.text
     acceptable = ["بله", "خیر", "بازگشت"]
@@ -140,6 +142,7 @@ async def delete_farm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     elif answer == "بله":
         db.log_activity(user.id, "confirmed delete")
+        delete_farm_from_pg(phone_number, farm)
         try:
             db.user_collection.update_one(
                 {"_id": user.id}, {"$unset": {f"farms.{farm}": ""}}
