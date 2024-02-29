@@ -1,15 +1,5 @@
 version: "3"
 services:
-  # mongo:
-  #   container_name: mongo
-  #   image: mongo:latest
-  #   restart: always
-  #   # ports:
-  #   #   - 127.0.0.1:${MONGODB_PORT:-27017}:${MONGODB_PORT:-27017}
-  #   volumes:
-  #     - ${MONGODB_PATH:-./mongodb}:/data/db
-  #   # TODO: add auth
-  
   telegram-bot:
     container_name: agri_weath_bot
     restart: always
@@ -24,25 +14,16 @@ services:
       - ASANAK_USERNAME=${asanak_username}
       - ASANAK_PASSWORD=${asanak_password}
       - ASANAK_PHONE_NUM=${asanak_phone_num}
+      - DB_NAME=${db_name}
+      - DB_USER=${db_user}
+      - DB_PASSWORD=${db_password}
+      - DB_HOST=${db_host}
+      - DB_PORT=${db_port}
     # ports:
     #   - 8000:8000
     command: python3 -u src/main.py
-    # depends_on:
-    #   - mongo
-
-  # mongo_express:
-  #   container_name: mongo-express
-  #   image: mongo-express:latest
-  #   restart: always
-  #   ports:
-  #     - 127.0.0.1:${MONGO_EXPRESS_PORT:-8081}:${MONGO_EXPRESS_PORT:-8081}
-  #   environment:
-  #     - ME_CONFIG_MONGODB_SERVER=${mongodb_uri}
-  #     - ME_CONFIG_MONGODB_PORT=${MONGODB_PORT:-27017}
-  #     - ME_CONFIG_MONGODB_ENABLE_ADMIN=false
-  #     - ME_CONFIG_MONGODB_AUTH_DATABASE=chatgpt_telegram_bot
-  #     - ME_CONFIG_BASICAUTH_USERNAME=${MONGO_EXPRESS_USERNAME:-username}
-  #     - ME_CONFIG_BASICAUTH_PASSWORD=${MONGO_EXPRESS_PASSWORD:-password}
-  #   depends_on:
-  #     - mongo
-
+    
+networks:
+  abaad_network:
+    external:
+      name: abaad-web-app_default
