@@ -17,6 +17,7 @@ from rasterio.transform import rowcol
 import warnings
 
 import database
+from pg_sync import update_farm_in_postgres
 
 from .logger import logger
 from .keyboards import (
@@ -211,6 +212,7 @@ async def ask_automn_week(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def set_automn_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    phone_number = db.get_user_attribute(user.id, "phone-number")
     user_data = context.user_data
     week = update.message.text
     acceptable_weeks = ['هفته دوم', 'هفته اول', 'هفته چهارم', 'هفته سوم']
@@ -233,6 +235,7 @@ async def set_automn_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     farm = user_data["set-automn-time-of-farm"]
     logger.info(f"farm: {farm}")
     db.set_user_attribute(user.id, f"farms.{farm}.automn-time", f"{week} - {month}")
+    update_farm_in_postgres(phone_number, farm, automn_date=f"{week} - {month}")
     reply_text = "زمان خزان باغ شما ثبت شد. اکنون میتوانید از گزینه <b>نیاز سرمایی</b> موجود در منو اطلاعات باغ خود را مشاهده کنید."
     await update.message.reply_text(reply_text, reply_markup=db.find_start_keyboard(user.id), parse_mode=ParseMode.HTML,)
     return ConversationHandler.END

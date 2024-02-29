@@ -20,6 +20,7 @@ from telegram.constants import ParseMode
 import warnings
 
 import database
+from pg_sync import add_farm_to_postgres, update_farm_in_postgres, delete_farm_from_pg
 from .regular_jobs import no_location_reminder
 from .keyboards import (
     manage_farms_keyboard,
@@ -82,6 +83,7 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def ask_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Receives and handles <<name>>"""
     user = update.effective_user
+    phone_number = db.get_user_attribute(user.id, "phone-number")
     user_data = context.user_data
     message_text = update.message.text
     if message_text == "بازگشت":
@@ -130,6 +132,7 @@ async def ask_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "location-method": None
     }
     db.add_new_farm(user_id=user.id, farm_name=farm_name, new_farm=new_farm_dict)
+    add_farm_to_postgres(phone_number=phone_number, farm_name=farm_name)
     reply_text = """
 لطفا نوع کشت خود را انتخاب کنید. 
 اگر نوع کشت شما در گزینه‌‌ها نیست آن را بنویسید.
@@ -142,11 +145,18 @@ async def ask_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def ask_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Receives and handles <<land_type>>"""
     user = update.effective_user
+    phone_number = db.get_user_attribute(user.id, "phone-number")
     user_data = context.user_data
     message_text = update.message.text
     # logger.info(update.message.text)
     if message_text == "بازگشت":
         db.log_activity(user.id, "back")
+        # delete farm from the databases
+        if user_data["farm_name"]:
+            db.user_collection.update_one(
+                {"_id": user.id}, {"$unset": {f"farms.{user_data['farm_name']}": ""}}
+            )
+            delete_farm_from_pg(phone_number, user_data["farm_name"])
         reply_text = """
 لطفا برای تشخیص این کشت یک نام وارد کنید:
 مثلا: باغ پسته
@@ -179,6 +189,7 @@ async def ask_product(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data["land_type"] = land_type
     db.log_activity(user.id, "chose land type", land_type)
     db.set_user_attribute(user.id, f"farms.{farm_name}.type", land_type)
+    update_farm_in_postgres(phone_number, farm_name, farm_type=land_type)
     if land_type == "باغ":
         await update.message.reply_text(
             "لطفا محصول باغ را انتخاب کنید. \nدر صورتی‌‌‌که باغ پسته ندارید محصول باغ خود را بنویسید.", 
@@ -246,6 +257,7 @@ async def ask_province(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Otherwise will receive output of ask_product
     """
     user = update.effective_user
+    phone_number = db.get_user_attribute(user.id, "phone-number")
     user_data = context.user_data
     message_text = update.message.text
     land_type = user_data["land_type"]
@@ -275,11 +287,14 @@ async def ask_province(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "لطفا فرایند را از ابتدا شروع کنید.", reply_markup=get_product_keyboard()
         )
         return ConversationHandler.END
+    farm_name = user_data["farm_name"]
     product = message_text.strip()
     if product.startswith("پسته"):
+        db.set_user_attribute(user.id, f"farms.{farm_name}.pesteh-types", product)
         product = "پسته"
-    farm_name = user_data["farm_name"]
+    user_data["farm_product"] = product
     db.set_user_attribute(user.id, f"farms.{farm_name}.product", product)
+    update_farm_in_postgres(phone_number, farm_name, products=product)
     db.log_activity(user.id, "chose product", f"{product}")
     await update.message.reply_text(
         "لطفا استان خود را انتخاب کنید. \nاگر استان شما در گزینه‌ها نبود آن را بنویسید", reply_markup=get_province_keyboard()
@@ -288,6 +303,7 @@ async def ask_province(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def ask_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    phone_number = db.get_user_attribute(user.id, "phone-number")
     user_data = context.user_data
     message_text = update.message.text
     land_type = user_data["land_type"]
@@ -321,8 +337,10 @@ async def ask_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ASK_CITY
     province = message_text.strip()
+    user_data["province"] = province
     farm_name = user_data["farm_name"]
     db.set_user_attribute(user.id, f"farms.{farm_name}.province", province)
+    update_farm_in_postgres(phone_number, farm_name, province=province)
     db.log_activity(user.id, "chose province", f"{province}")
     await update.message.reply_text(
         "لطفا شهرستان محل کشت را وارد کنید:", reply_markup=back_button()
@@ -331,6 +349,7 @@ async def ask_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def ask_village(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    phone_number = db.get_user_attribute(user.id, "phone-number")
     user_data = context.user_data
     if update.message.text == "بازگشت":
         db.log_activity(user.id, "back")
@@ -351,8 +370,10 @@ async def ask_village(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ASK_VILLAGE
     city = update.message.text.strip()
+    user_data["city"] = city
     farm_name = user_data["farm_name"]
     db.set_user_attribute(user.id, f"farms.{farm_name}.city", city)
+    update_farm_in_postgres(phone_number, farm_name, city=city)
     db.log_activity(user.id, "entered city", f"{city}")
     await update.message.reply_text(
         "لطفا روستای محل کشت و آدرس حدودی آن را وارد کنید:", reply_markup=back_button()
@@ -361,6 +382,7 @@ async def ask_village(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def ask_area(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    phone_number = db.get_user_attribute(user.id, "phone-number")
     user_data = context.user_data
     if update.message.text == "بازگشت":
         db.log_activity(user.id, "back")
@@ -378,14 +400,17 @@ async def ask_area(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ASK_AREA
     village = update.message.text.strip()
+    user_data["village"] = village
     farm_name = user_data["farm_name"]
     db.set_user_attribute(user.id, f"farms.{farm_name}.village", village)
+    update_farm_in_postgres(phone_number, farm_name, village=village)
     db.log_activity(user.id, "entered village", f"{village}")
     await update.message.reply_text("لطفا متراژ کشت خود را به هکتار وارد کنید:", reply_markup=back_button())
     return ASK_LOCATION
 
 async def ask_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    phone_number = db.get_user_attribute(user.id, "phone-number")
     user_data = context.user_data
     if update.message.text == "بازگشت":
         db.log_activity(user.id, "back")
@@ -409,6 +434,7 @@ async def ask_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data["area"] = area
     farm_name = user_data["farm_name"]
     db.set_user_attribute(user.id, f"farms.{farm_name}.area", area)
+    update_farm_in_postgres(phone_number, farm_name, area=area)
     db.log_activity(user.id, "entered area", f"{area}")
     reply_text = """
 لطفا موقعیت باغ (لوکیشن باغ) خود را با انتخاب یکی از روش‌های زیر بفرستید.
@@ -471,6 +497,13 @@ async def handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
 برای ویرایش یا مشاهده اطلاعات باغ از گزینه‌های مرتبط در /start استفاده کنید.
 """
         await update.message.reply_text(reply_text, reply_markup=db.find_start_keyboard(user.id))
+        phone_number = db.get_user_attribute(user.id, "phone-number")
+        update_farm_in_postgres(
+            phone_number=phone_number,
+            farm_name=farm_name,
+            location=(location.longitude, location.latitude),
+            status="complete"
+        )
         return ConversationHandler.END
     if not location and text != "از نقشه داخل تلگرام انتخاب میکنم":
         db.log_activity(user.id, "error - location", text)

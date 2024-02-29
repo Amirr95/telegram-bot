@@ -29,6 +29,7 @@ from .keyboards import (
     edit_keyboard_reply,
     back_button,
     )
+from pg_sync import update_farm_in_postgres
 from .number_transformer import extract_number
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -209,6 +210,7 @@ async def handle_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
     attr = user_data["attr"]
     farm = user_data["selected_farm"]
     user_farms = db.get_farms(user.id)
+    phone_number = db.get_user_attribute(user.id, "phone-number")
     ## handle the new value of attr
     if attr == "تغییر محصول":
         new_product = update.message.text
@@ -227,7 +229,13 @@ async def handle_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=get_product_keyboard(),
             )
             return HANDLE_EDIT
-        db.set_user_attribute(user.id, f"farms.{farm}.product", new_product)
+        if new_product.startswith("پسته"):
+            db.set_user_attribute(user.id, f"farms.{farm}.product", "پسته")
+            db.set_user_attribute(user.id, f"farms.{farm}.pesteh-types", new_product)
+            update_farm_in_postgres(phone_number, farm, products="پسته")
+        else:
+            db.set_user_attribute(user.id, f"farms.{farm}.product", new_product)
+            update_farm_in_postgres(phone_number, farm, products=new_product)
         reply_text = f"محصول جدید {farm} با موفقیت ثبت شد."
         db.log_activity(user.id, "finish edit product")
         await context.bot.send_message(
@@ -251,6 +259,7 @@ async def handle_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return HANDLE_EDIT
         db.set_user_attribute(user.id, f"farms.{farm}.province", new_province)
+        update_farm_in_postgres(phone_number, farm, province=new_province)
         reply_text = f"استان جدید {farm} با موفقیت ثبت شد."
         db.log_activity(user.id, "finish edit province")
         await context.bot.send_message(
@@ -271,6 +280,7 @@ async def handle_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("لطفا شهرستان جدید را وارد کنید")
             return HANDLE_EDIT
         db.set_user_attribute(user.id, f"farms.{farm}.city", new_city)
+        update_farm_in_postgres(phone_number, farm, city=new_city)
         reply_text = f"شهرستان جدید {farm} با موفقیت ثبت شد."
         db.log_activity(user.id, "finish edit city")
         await context.bot.send_message(
@@ -291,6 +301,7 @@ async def handle_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("لطفا روستای جدید را وارد کنید")
             return HANDLE_EDIT
         db.set_user_attribute(user.id, f"farms.{farm}.village", new_village)
+        update_farm_in_postgres(phone_number, farm, village=new_village)
         reply_text = f"روستای جدید {farm} با موفقیت ثبت شد."
         db.log_activity(user.id, "finish edit village")
         await context.bot.send_message(
@@ -316,6 +327,7 @@ async def handle_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("لطفا مساحت را به صورت عددی با واحد هکتار وارد کنید")
             return HANDLE_EDIT
         db.set_user_attribute(user.id, f"farms.{farm}.area", new_area)
+        update_farm_in_postgres(phone_number, farm, area=new_area)
         reply_text = f"مساحت جدید {farm} با موفقیت ثبت شد."
         db.log_activity(user.id, "finish edit area")
         await context.bot.send_message(
@@ -347,6 +359,7 @@ async def handle_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
             db.set_user_attribute(
                 user.id, f"farms.{farm}.location-method", "User sent location via edit"
             )
+            update_farm_in_postgres(phone_number, farm, location=(new_location.longitude, new_location.latitude))
             reply_text = f"موقعیت جدید {farm} با موفقیت ثبت شد."
             db.log_activity(user.id, "finish edit location", f"long: {new_location.longitude}, lat: {new_location.latitude}")
             await context.bot.send_message(

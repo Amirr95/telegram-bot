@@ -13,10 +13,13 @@ from telegram.ext import (
 )
 from telegram.error import BadRequest, Forbidden
 from telegram.constants import ParseMode
+
 import requests
 import re
 import warnings
+
 import database
+from pg_sync import update_farm_in_postgres
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -80,6 +83,11 @@ async def cq_handle_location(update: Update, context: ContextTypes.DEFAULT_TYPE)
     db.set_user_attribute(target_user, f"farms.{farm_name}.location.longitude", long)
     db.set_user_attribute(target_user, f"farms.{farm_name}.location.latitude", lat)
     db.set_user_attribute(target_user, f"farms.{farm_name}.link-status", "Verified")
+    
+    phone_number = db.get_user_attribute(target_user, "phone-number")
+    if phone_number:
+        update_farm_in_postgres(phone_number, farm_name, location=(long, lat), status="complete")
+    
     db.log_activity(admin.id, "set a user's location", target_user)
     for admin in ADMIN_LIST:
         await context.bot.send_message(chat_id=admin, text=f"Location of farm {farm_name} belonging to {target_user} was set")
@@ -217,6 +225,11 @@ https://goo.gl/maps/3Nx2zh3pevaz9vf16
             try:
                 db.set_user_attribute(int(user_id), f"farms.{user_data['farm_name'][i]}.location.latitude", float(result[i].group(1)))
                 db.set_user_attribute(int(user_id), f"farms.{user_data['farm_name'][i]}.location.longitude", float(result[i].group(2)))
+                
+                phone_number = db.get_user_attribute(int(user_id), "phone-number")
+                if phone_number:
+                    update_farm_in_postgres(phone_number, farm_name, location=(float(result[i].group(2)), float(result[i].group(1))), status="complete")
+                
                 await context.bot.send_message(chat_id=int(user_id), text=f"لوکیشن باغ شما با نام {user_data['farm_name'][i]} ثبت شد.")
                 await context.bot.send_location(chat_id=int(user_id), latitude=float(result[i].group(1)), longitude=float(result[i].group(2)))
                 await context.bot.send_message(chat_id=user.id, text=f"لوکیشن باغ {user_id} با نام {user_data['farm_name'][i]} ثبت شد.")
@@ -251,7 +264,11 @@ async def handle_lat_long(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.set_user_attribute(int(user_data["target"][0]), f"farms.{user_data['farm_name']}.location.longitude", float(user_data["long"]))
     db.set_user_attribute(int(user_data["target"][0]), f"farms.{user_data['farm_name']}.location.latitude", float(user_data["lat"]))
     db.set_user_attribute(int(user_data["target"][0]), f"farms.{user_data['farm_name']}.link-status", "Verified")
-    db.log_activity(user.id, "set a user's location", user_data["target"][0])
+    db.log_activity(user.id, "set a user's location", user_data["target"][0])    
+    phone_number = db.get_user_attribute(int(user_data["target"][0]), "phone-number")
+    if phone_number:
+        update_farm_in_postgres(phone_number, user_data['farm_name'], location=(float(user_data["long"]), float(user_data["lat"])), status="complete")
+
     for admin in ADMIN_LIST:
         await context.bot.send_message(chat_id=admin, text=f"Location of farm {user_data['farm_name']} belonging to {user_data['target'][0]} was set")
         await context.bot.send_location(chat_id=admin, latitude=float(user_data["lat"]), longitude=float(user_data["long"]))
