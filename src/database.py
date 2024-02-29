@@ -8,8 +8,6 @@ from telegram import ReplyKeyboardMarkup
 from typing import Callable, Type
 
 REQUIRED_FIELDS = [
-    "_id",
-    "username",
     "name",
     "phone-number",
 ]
@@ -25,6 +23,7 @@ class Database:
         self.dialog_collection = self.db["dialogCollection"]
         self.sms_collection = self.db["smsCollection"]
         self.weather_collection = self.db["weatherCollection"]
+        self.app_collection = self.db["webappUserCollection"]
 
     def check_if_user_exists(self, user_id: int, raise_exception: bool = False):
         if self.user_collection.count_documents({"_id": user_id}) > 0:
@@ -41,6 +40,17 @@ class Database:
         else:
             return False
 
+    def check_if_user_exists_in_webapp(self, phone_number: str):
+        if self.app_collection.count_documents({"phone-number": phone_number}) > 0:
+            return True
+        else:
+            return False
+    
+    def copy_webapp_farms(self, user_id: int, phone_number: str) -> None:
+        user_document = self.app_collection.find_one({"phone-number": phone_number})
+        farms = user_document.get("farms")
+        self.user_collection.update_one({"_id": user_id}, {"$set": {"farms": farms}})
+        
     def check_if_user_is_registered(self, user_id: int, required_keys: list = REQUIRED_FIELDS):
         if not self.check_if_user_exists(user_id=user_id):
             return False
@@ -50,6 +60,15 @@ class Database:
                 return True
             else:
                 return False
+    
+    def get_registered_users(self, required_keys: list = REQUIRED_FIELDS) -> list[dict]:
+        # Get all documents from the user_collection
+        documents = self.user_collection.find()
+
+        # Extract the documents where all required keys are present
+        registered_users = [doc for doc in documents if all(key in doc for key in required_keys)]
+
+        return registered_users
     
     def check_if_user_has_farms(self, user_id: int, user_document: dict = None) -> bool:
         if not user_document:
