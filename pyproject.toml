@@ -27,6 +27,7 @@ requests-cache = "^1.1.1"
 retry-requests = "^2.0.0"
 numpy = "^1.26.3"
 pandas = "^2.1.4"
+psycopg2-binary = "^2.9.9"
 
 
 [build-system]
