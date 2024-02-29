@@ -16,6 +16,7 @@ import datetime
 import re
 
 import database
+from pg_sync import add_user_to_postgres
 
 from .logger import logger
 from .sms_funcs import sms_no_farm
@@ -87,10 +88,19 @@ async def handle_phone(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return HANDLE_PHONE
     
     db.log_activity(user.id, "entered phone", phone)
+    if db.check_if_user_exists_in_webapp(phone):
+        db.copy_webapp_farms(user.id, phone)
+    else:
+        try:
+            add_user_to_postgres(name=user_data["name"], phone=phone)
+        except:
+            logger.error(f"Error adding user {user.id} to postgres: \n{user_data}")
     user_data["phone"] = phone
     db.set_user_attribute(user_id=user.id, key="phone-number", value=phone)
     reply_text = """
 اکنون می‌توانید با انتخاب گزینه <b>(➕ اضافه کردن کشت)</b> باغ‌های خود را ثبت کنید.
+
+اگر قبلا باغ خود را در اپلیکیشن آباد ثبت کرده‌اید /start را بزنید.
     """
     keyboard = [['➕ اضافه کردن کشت']]
     
