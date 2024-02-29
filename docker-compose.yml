@@ -22,6 +22,8 @@ services:
     # ports:
     #   - 8000:8000
     command: python3 -u src/main.py
+    networks:
+      - abaad_network
     
 networks:
   abaad_network:
