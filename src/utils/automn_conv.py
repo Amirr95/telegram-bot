@@ -57,6 +57,14 @@ def calculate_chilling_hours(automn_time: str, longitude: float, latitude: float
             "هفته دوم - آذر": 31,
             "هفته سوم - آذر": 38,
             "هفته چهارم - آذر": 45,
+            "هفته اول آبان": 0,
+            "هفته دوم آبان": 0,
+            "هفته سوم آبان": 3,
+            "هفته چهارم آبان": 10,
+            "هفته اول آذر": 24,
+            "هفته دوم آذر": 31,
+            "هفته سوم آذر": 38,
+            "هفته چهارم آذر": 45,
         }
 
         start_band_index = automn_time_to_start_band_index.get(automn_time)    
