@@ -1,5 +1,5 @@
 from telegram.constants import ParseMode
-from telegram.error import BadRequest, Forbidden
+from telegram.error import BadRequest, Forbidden, TimedOut
 from telegram.ext import ContextTypes
 import geopandas as gpd
 from shapely import Point
@@ -140,6 +140,8 @@ async def send_todays_data(context: ContextTypes.DEFAULT_TYPE):
     
     users = db.get_users_with_location()
     receivers = 0
+    time_outs = 0
+    time_out_ids = []
     for user in users:
         message = f"""
 کشاورزان و باغداران عزیز 
@@ -172,18 +174,25 @@ async def send_todays_data(context: ContextTypes.DEFAULT_TYPE):
             receivers += 1
         except Forbidden:
             db.set_user_attribute(user, "blocked", True)
-            logger.info(f"user:{user} has blocked the bot!")
+            logger.error(f"user:{user} has blocked the bot!")
             if datetime.time(5).strftime("%H%M") <= datetime.datetime.now().strftime("%H%M") < datetime.time(19).strftime("%H%M"): 
                 context.job_queue.run_once(sms_block, when=datetime.timedelta(minutes=30), chat_id=user, data={})
             else:
                 context.job_queue.run_once(sms_block, when=datetime.time(4, 30), chat_id=user, data={}) 
         except BadRequest:
-            logger.info(f"user:{user} chat was not found!")            
+            logger.error(f"user:{user} chat was not found!")
+        except TimedOut:
+            logger.error(f"user: {user} caused TimedOut Error")
+            time_outs += 1
+            time_out_ids.append(user)
+            await context.bot.send_message(chat_id=103465015, 
+                                           text=f"user:<pre>{user}</pre> caused TimedOut Error",
+                                           parse_mode=ParseMode.HTML)
     
     for admin in admin_list:
         try:
             await context.bot.send_message(
-                chat_id=admin, text=f"پیام به {receivers} نفر ارسال شد."
+                chat_id=admin, text=f"پیام به {receivers} نفر ارسال شد.\n\nTimeOut errors: {time_outs}\n\nIDs:\n{time_out_ids}"
             )
         except BadRequest or Forbidden:
             logger.warning(f"admin {admin} has deleted the bot")

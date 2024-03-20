@@ -10,7 +10,7 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler,
 )
-from telegram.error import BadRequest, Forbidden
+from telegram.error import BadRequest, Forbidden, TimedOut
 import os
 import datetime
 import matplotlib
@@ -176,6 +176,8 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message_id = update.message.message_id
     receiver_list = user_data['receiver_list']
     i = 0
+    time_outs = 0
+    time_out_ids = []
     receivers = []
     if message_text == "/cancel":
         await update.message.reply_text("عملیات کنسل شد!", reply_markup=db.find_start_keyboard(user.id))
@@ -219,13 +221,17 @@ async def broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except BadRequest:
                 logger.error(f"chat with {user_id} not found.")
                 await context.bot.send_message(chat_id=user.id, text=f"{user_id} was not found")
+            except TimedOut:
+                logger.error(f"user: {user_id} caused TimedOut Error")
+                time_outs += 1
+                time_out_ids.append(user_id)
         db.log_sent_messages(receivers, f"broadcast {user_data['receiver_type']}")
-        for id in ADMIN_LIST:
+        for admin in ADMIN_LIST:
             try:
-                await context.bot.send_message(id, f"پیام برای {i} نفر از {len(receiver_list)} نفر ارسال شد."
-                                    , reply_markup=db.find_start_keyboard(id))
+                await context.bot.send_message(admin, f"پیام برای {i} نفر از {len(receiver_list)} نفر ارسال شد.\n\nTimeOut errors: {time_outs}\n\nIDs:\n{time_out_ids}",
+                                               reply_markup=db.find_start_keyboard(admin))
             except BadRequest or Forbidden:
-                logger.warning(f"admin {id} has deleted the bot")
+                logger.warning(f"admin {admin} has deleted the bot")
         return ConversationHandler.END
 
 
