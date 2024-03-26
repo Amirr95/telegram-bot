@@ -265,3 +265,140 @@ def remaining_chilling_hours_table(
     #   file.write(html)
     options = {"width": 1600}
     from_string(html, output, options=options)
+
+def spring_frost_table(frost_advice: zip, messages: list[str], output = "frost-table.png"):
+  head = """
+  <!DOCTYPE html>
+    <html lang="fa" dir="rtl">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Document</title>
+      <style>
+        * {
+          font-family:Impact, Charcoal, sans-serif !important;
+        }
+        table { 
+          width: 100%;
+          border-collapse: collapse;
+        }
+        th, td {
+          border: 1.5px solid black;
+          text-align: center;
+        }
+        .th-border {
+          border-left: 4px solid black;
+        }
+        .table-green, .table-green > th, .table-green > td {
+            background-color: #92f496;
+        }
+        .table-yellow, .table-yellow > th, .table-yellow > td {
+            background-color: #fff178 ;
+        }
+        .table-orange, .table-orange > th, .table-orange > td {
+            background-color: #ffc268 ;
+        }
+        .table-red, .table-red > th, .table-red > td {
+            background-color: #ff8178 ;
+        }
+        .messages {
+          padding-inline-start: 25px;
+        }
+        .message {
+          padding: 5px;
+          font-size: larger;
+        }
+      </style>
+    </head>
+  """
+  thead = """
+    <body>
+      <table class="table text-center">
+        <thead>
+          <tr>
+            <th rowspan="2" class="text-center th-border">ساعت</th>
+            <th colspan="2" class="text-center th-border">0-6</th>
+            <th colspan="2" class="text-center th-border">6-12</th>
+            <th colspan="2" class="text-center th-border">12-18</th>
+            <th colspan="2" class="text-center th-border">18-24</th>
+          </tr>
+          <tr>
+            <th class="text-center">احتمال </br> سرمازدگی</th>
+            <th class="th-border text-center">وضعیت </br> باد</th>
+            <th class="text-center">احتمال </br> سرمازدگی</th>
+            <th class="th-border text-center">وضعیت </br> باد</th>
+            <th class="text-center">احتمال </br> سرمازدگی</th>
+            <th class="th-border text-center">وضعیت </br> باد</th>
+            <th class="text-center">احتمال </br> سرمازدگی</th>
+            <th class="th-border text-center">وضعیت </br> باد</th>
+          </tr>
+        </thead>
+          <tbody>
+  """
+  row = """
+  <tr>
+  <th scope="row" class="th-border">{{ label }}</th>
+  <td {% if temp1 == 0 %} class="table-green" {% elif temp1 == 1 %} class="table-yellow" {% elif temp1 == 2 %} class="table-orange" {% elif temp1 == 3 %} class="table-red" {% endif %}>{% if temp1 == 0 %} نداریم {% elif temp1 == 1 %} کم {% elif temp1 == 2 %} زیاد {% elif temp1 == 3 %} بسیار شدید {% endif %}</td>
+  <td class="th-border">{% if wind1 == 0 %} مناسب {% elif wind1 == 1 %} با احتیاط {% elif wind1 == 2 %} نامناسب {% endif %}</td>
+  <td {% if temp2 == 0 %} class="table-green" {% elif temp2 == 1 %} class="table-yellow" {% elif temp2 == 2 %} class="table-orange" {% elif temp2 == 3 %} class="table-red" {% endif %}>{% if temp2 == 0 %} نداریم {% elif temp2 == 1 %} کم {% elif temp2 == 2 %} زیاد {% elif temp2 == 3 %} بسیار شدید {% endif %}</td>
+  <td class="th-border">{% if wind2 == 0 %} مناسب {% elif wind2 == 1 %} با احتیاط {% elif wind2 == 2 %} نامناسب {% endif %}</td>
+  <td {% if temp3 == 0 %} class="table-green" {% elif temp3 == 1 %} class="table-yellow" {% elif temp3 == 2 %} class="table-orange" {% elif temp3 == 3 %} class="table-red" {% endif %}>{% if temp3 == 0 %} نداریم {% elif temp3 == 1 %} کم {% elif temp3 == 2 %} زیاد {% elif temp3 == 3 %} بسیار شدید {% endif %}</td>
+  <td class="th-border">{% if wind3 == 0 %} مناسب {% elif wind3 == 1 %} با احتیاط {% elif wind3 == 2 %} نامناسب {% endif %}</td>
+  <td {% if temp4 == 0 %} class="table-green" {% elif temp4 == 1 %} class="table-yellow" {% elif temp4 == 2 %} class="table-orange" {% elif temp4 == 3 %} class="table-red" {% endif %}>{% if temp4 == 0 %} نداریم {% elif temp4 == 1 %} کم {% elif temp4 == 2 %} زیاد {% elif temp4 == 3 %} بسیار شدید {% endif %}</td>
+  <td class="th-border">{% if wind4 == 0 %} مناسب {% elif wind4 == 1 %} با احتیاط {% elif wind4 == 2 %} نامناسب {% endif %}</td>
+  </tr>
+  """
+  end = """
+          </tbody>
+      </table>
+      <div class="messages">{}</div>
+    </body>
+  </html>
+  """
+  rows = ""
+  for label, temp1, wind1, temp2, wind2, temp3, wind3, temp4, wind4 in frost_advice:
+    row = "<tr>"
+    row += f"<th scope='row' class='th-border'>{label}</th>"
+    row += "<td class='table-green'>نداریم</td>" if temp1 == 0 else \
+           "<td class='table-yellow'>کم</td>" if temp1 == 1 else \
+           "<td class='table-orange'>زیاد</td>" if temp1 == 2 else \
+           "<td class='table-red'>بسیار شدید</td>"
+    row += "<td class='th-border'>--</td>" if temp1 == 0 else \
+           "<td class='th-border'>مناسب</td>" if wind1 == 0 else \
+           "<td class='th-border'>با احتیاط</td>" if wind1 == 1 else \
+           "<td class='th-border'>نامناسب</td>"
+    row += "<td class='table-green'>نداریم</td>" if temp2 == 0 else \
+           "<td class='table-yellow'>کم</td>" if temp2 == 1 else \
+           "<td class='table-orange'>زیاد</td>" if temp2 == 2 else \
+           "<td class='table-red'>بسیار شدید</td>"
+    row += "<td class='th-border'>--</td>" if temp2 == 0 else \
+           "<td class='th-border'>مناسب</td>" if wind2 == 0 else \
+           "<td class='th-border'>با احتیاط</td>" if wind2 == 1 else \
+           "<td class='th-border'>نامناسب</td>"
+    row += "<td class='table-green'>نداریم</td>" if temp3 == 0 else \
+           "<td class='table-yellow'>کم</td>" if temp3 == 1 else \
+           "<td class='table-orange'>زیاد</td>" if temp3 == 2 else \
+           "<td class='table-red'>بسیار شدید</td>"
+    row += "<td class='th-border'>--</td>" if temp3 == 0 else \
+           "<td class='th-border'>مناسب</td>" if wind3 == 0 else \
+           "<td class='th-border'>با احتیاط</td>" if wind3 == 1 else \
+           "<td class='th-border'>نامناسب</td>"
+    row += "<td class='table-green'>نداریم</td>" if temp4 == 0 else \
+           "<td class='table-yellow'>کم</td>" if temp4 == 1 else \
+           "<td class='table-orange'>زیاد</td>" if temp4 == 2 else \
+           "<td class='table-red'>بسیار شدید</td>"
+    row += "<td class='th-border'>--</td>" if temp4 == 0 else \
+           "<td class='th-border'>مناسب</td>" if wind4 == 0 else \
+           "<td class='th-border'>با احتیاط</td>" if wind4 == 1 else \
+           "<td class='th-border'>نامناسب</td>"
+    row += "</tr>"
+    rows = rows + row 
+  # if messages: 
+  #   message_list = [f"<p class='message'>{message}</p>" for message in messages]
+  #   html = head + thead + rows + end.format("\n".join(message_list))
+  # else:
+  html = head + thead + rows + end.format("")
+  # with open("frost-table.html", "w") as file:
+  #     file.write(html)
+  options = {}
+  from_string(html, output, options=options)

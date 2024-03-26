@@ -23,6 +23,7 @@ from itertools import zip_longest
 from fiona.errors import DriverError
 import warnings
 import database
+from pg_sync import query_frost_temp, query_frost_wind
 from .keyboards import (
     farms_list_reply,
     view_sp_advise_keyboard,
@@ -30,7 +31,8 @@ from .keyboards import (
     weather_keyboard
 )
 from .weather_api import get_weather_report
-from .table_generator import weather_table
+from .table_generator import weather_table, spring_frost_table
+from .message_generator import generate_messages
 from telegram.constants import ParseMode
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -107,7 +109,7 @@ async def req_ch_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(
             chat_id=user.id,
             text="یکی از باغ های خود را انتخاب کنید",
-            reply_markup=farms_list_reply(db, user.id),
+            reply_markup=farms_list_reply(db, user.id, pesteh_kar=True),
         )
         return RECV_CH
     else:
@@ -434,65 +436,45 @@ async def recv_ch(update: Update, context: ContextTypes.DEFAULT_TYPE):
     longitude = user_farms[farm]["location"]["longitude"]
     latitude = user_farms[farm]["location"]["latitude"]
     if longitude is not None:
-        try:
-            if datetime.time(7, 0).strftime("%H%M") <= datetime.datetime.now().strftime("%H%M") < datetime.time(20, 30).strftime("%H%M"):    
-                ch_data = gpd.read_file(f"data/Iran{today}_AdviseCH.geojson")
-            else:
-                ch_data = gpd.read_file(f"data/Iran{yesterday}_AdviseCH.geojson")
-                day3 = day2
-                day2 = day1
-                day1 = today
-                date_tag = 'امروز'
-                jdate = jdatetime.datetime.now().strftime("%Y/%m/%d")
-                
-            point = Point(longitude, latitude)
-            threshold = 0.1  # degrees
-            idx_min_dist = ch_data.geometry.distance(point).idxmin()
-            closest_coords = ch_data.geometry.iloc[idx_min_dist].coords[0]
-            if point.distance(Point(closest_coords)) <= threshold:
-                row = ch_data.iloc[idx_min_dist]
-                ch_3days = [row[f'Time={day1}'], row[f'Time={day2}'], row[f'Time={day3}']]
-                db.set_user_attribute(user.id, f"farms.{farm}.ch-advise", {"day1": ch_3days[0], "day2": ch_3days[1], "day3":ch_3days[2]})
+        frost_temp = query_frost_temp(latitude, longitude)
+        print("temp: ", frost_temp)
+        labels = frost_temp.get("labels")
+        frost_temp = frost_temp.get("frost-temp")
+        frost_wind = query_frost_wind(latitude, longitude).get("frost-wind")
+        # frost_temp = [3,2,2,3,2,1,2,3,2,1,2,3]
+        # frost_wind = [0,1,2,0,1,2,0,1,2,0,1,2]
+        # frost_labels = ["day1", "day2", "day3"]
+        # print(labels, "\n", frost_temp, "\n", frost_wind)
+        frost_advice = None
+        messages = None
+        if frost_temp and frost_wind and labels:
+            caption = f"""
+باغدار عزیز 
+پیش‌بینی سرمازدگی بهاره در باغ شما با نام <b>#{farm.replace(" ", "_")}</b> در روزهای آینده بدین صورت خواهد بود
+"""
+            frost_advice = zip(
+                labels,
+                frost_temp[::4], frost_wind[::4], frost_temp[1::4], frost_wind[1::4], frost_temp[2::4], frost_wind[2::4], frost_temp[3::4], frost_wind[3::4]
+                )
+            messages = generate_messages(frost_temp, frost_wind)
+            # if messages:
+            #     caption = caption + "\n" + "\n".join(messages)
+            spring_frost_table(frost_advice=frost_advice, messages=messages)
+            with open('frost-table.png', 'rb') as image_file:
+                await context.bot.send_photo(chat_id=user.id, photo=image_file, caption=caption, reply_markup=db.find_start_keyboard(user.id), parse_mode=ParseMode.HTML, read_timeout=15, write_timeout=30)
+            if messages:
                 try:
-                    if pd.isna(ch_3days[0]):
-                        advise = f"""
-باغدار عزیز 
-هشدار زیر با توجه به وضعیت آب و هوایی باغ شما با نام <b>#{farm.replace(" ", "_")}</b> برای #{date_tag} مورخ <b>{jdate}</b> ارسال می‌شود:
-
-<pre>توصیه‌ای برای این تاریخ موجود نیست</pre>
-
-<i>می‌توانید با استفاده از دکمه‌های زیر توصیه‌‌های مرتبط با روزهای آینده را مشاهده کنید.</i>
-"""
-                    else:
-                        advise = f"""
-باغدار عزیز 
-هشدار زیر با توجه به وضعیت آب و هوایی باغ شما با نام <b>#{farm.replace(" ", "_")}</b> برای #{date_tag} مورخ <b>{jdate}</b> ارسال می‌شود:
-
-<pre>{ch_3days[0]}</pre>
-
-<i>می‌توانید با استفاده از دکمه‌های زیر توصیه‌‌های مرتبط با روزهای آینده را مشاهده کنید.</i>
-"""
-                    await context.bot.send_message(chat_id=user.id, text=advise, reply_markup=view_ch_advise_keyboard(farm), parse_mode=ParseMode.HTML)
-                    username = user.username
-                    db.log_new_message(
-                        user_id=user.id,
-                        username=username,
-                        message=advise,
-                        function="send_advice",
-                        )
-                    db.log_activity(user.id, "received ch advice")
-                except Forbidden:
-                    db.set_user_attribute(user.id, "blocked", True)
-                    logger.info(f"user:{user.id} has blocked the bot!")
+                    parsed_messages = [f"<pre>{msg}</pre>" for msg in messages]
+                    await context.bot.send_message(chat_id=user.id, text="\n".join(parsed_messages), reply_markup=db.find_start_keyboard(user.id), parse_mode=ParseMode.HTML)
                 except BadRequest:
-                    logger.info(f"user:{user.id} chat was not found!")
-                finally:
-                    return ConversationHandler.END
-            else:
-                await context.bot.send_message(chat_id=user.id, text="متاسفانه باغ شما از محدوده پوشش آباد خارج است.", reply_markup=db.find_start_keyboard(user.id))
-                return ConversationHandler.END
-        except DriverError:
-            logger.info(f"{user.id} requested today's ch advice. Iran{today}_AdviseCH.geojson was not found!")
+                    logger.error("messages were too long")
+                    new_messages = [messages[i: i+3] for i in range(0, len(messages), 3)]
+                    for message in new_messages:
+                        message = [f"<pre>{msg}</pre>" for msg in message]
+                        await context.bot.send_message(chat_id=user.id, text="\n".join(message), reply_markup=db.find_start_keyboard(user.id), parse_mode=ParseMode.HTML)
+            return ConversationHandler.END
+        else:
+            logger.info(f"{user.id} requested spring frost advice. Data was not found!")
             await context.bot.send_message(chat_id=user.id, text="متاسفانه اطلاعات باغ شما در حال حاضر موجود نیست", reply_markup=db.find_start_keyboard(user.id))
             return ConversationHandler.END
     elif user_farms[farm].get("link-status") == "To be verified":
@@ -596,7 +578,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 weather_req_conv_handler = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex('🌦 پیش‌بینی هواشناسی'), req_weather_data),
                       MessageHandler(filters.Regex('🧪 شرایط محلول‌پاشی'), req_sp_data),
-                      MessageHandler(filters.Regex('⚠️ هشدار سرمازدگی زمستانه'), req_ch_data),
+                      MessageHandler(filters.Regex('⚠️ هشدار سرمازدگی بهاره'), req_ch_data),
                       MessageHandler(filters.Regex('🌡 نیاز حرارتی پروانه چوبخوار'), req_gdd_data)],
         states={
             RECV_WEATHER: [MessageHandler(filters.TEXT , recv_weather)],
