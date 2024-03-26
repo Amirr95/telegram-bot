@@ -1,15 +1,14 @@
 version: "3"
 services:
-  telegram-bot:
-    container_name: agri_weath_bot
+  sms-service:
+    container_name: sms-container
     restart: always
     build:
       context: .
       dockerfile: dockerfile
     volumes:
-      - .:/bot
+      - .:/sms
     environment:
-      - AGRIWEATHBOT_TOKEN=${agriweath_token}
       - MONGODB_URI=${mongodb_uri}
       - ASANAK_USERNAME=${asanak_username}
       - ASANAK_PASSWORD=${asanak_password}
@@ -21,11 +20,11 @@ services:
       - DB_PORT=${db_port}
     # ports:
     #   - 8000:8000
-    command: python3 -u src/main.py
+    # command: python3 -u src/main.py
     networks:
-      - abaad_network
+      - sms_network
     
 networks:
-  abaad_network:
+  sms_network:
     external:
       name: abaad-web-app_default
