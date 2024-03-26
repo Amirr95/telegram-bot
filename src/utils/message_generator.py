@@ -13,11 +13,6 @@ def generate_messages(frost_temp: list[int], frost_wind: list[int]) -> list[str]
         2: "زیاد",
         3: "بسیار شدید"
     }
-    wind_description = {
-        0: "مناسب",
-        1: "با احتیاط",
-        2: "نامناسب"
-    }
     for day_index, day_date in enumerate(dates):
         for period_index, period_hour in enumerate(hours):
             index = day_index * len(hours) + period_index
@@ -25,12 +20,7 @@ def generate_messages(frost_temp: list[int], frost_wind: list[int]) -> list[str]
             wind = frost_wind[index]
             if temp >= 2:
                 temp_desc = temp_description[temp]
-                if wind == 0:
-                    msg = f"روز {weekdays[day_index]} {day_date} در بازه ساعت {period_hour} خطر سرمازدگی {temp_desc} وجود دارد و با توجه به وضعیت مناسب باد در این بازه زمانی می‌توانید اقدامات لازم برای مقابله با سرمازدگی را انجام دهید."
-                elif wind == 1:
-                    msg = f"روز {weekdays[day_index]} {day_date} در بازه ساعت {period_hour} خطر سرمازدگی {temp_desc} وجود دارد و با توجه به وضعیت باد در این بازه زمانی می‌توانید اقدامات لازم برای مقابله با سرمازدگی را با احتیاط انجام دهید."
-                elif wind == 2:
-                    msg = f"روز {weekdays[day_index]} {day_date} در بازه ساعت {period_hour} خطر سرمازدگی {temp_desc} وجود دارد و با توجه به وضعیت نامناسب باد در این بازه زمانی توصیه می‌شود برای مقابله با سرمازدگی اقدامی انجام ندهید."
+                msg = f"روز {weekdays[day_index]} {day_date} در بازه ساعت {period_hour} خطر سرمازدگی {temp_desc} وجود دارد"
                 messages.append(msg)
     return messages
     

@@ -11,3 +11,4 @@ ftp*
 *.png
 *.json
 *.tif
+sms_logs.*

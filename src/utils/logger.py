@@ -9,10 +9,10 @@ logging.basicConfig(
     level=logging.INFO,
     handlers=[
         RotatingFileHandler(
-            "bot_logs.log", maxBytes=512000, backupCount=5
+            "sms_logs.log", maxBytes=512000, backupCount=5
         ),  # File handler to write logs to a file
         logging.StreamHandler(),  # Stream handler to display logs in the console
     ],
 )
-logger = logging.getLogger("agriWeather-bot")
+logger = logging.getLogger("sms-service")
 logging.getLogger("httpx").setLevel(logging.WARNING)
