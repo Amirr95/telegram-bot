@@ -437,7 +437,6 @@ async def recv_ch(update: Update, context: ContextTypes.DEFAULT_TYPE):
     latitude = user_farms[farm]["location"]["latitude"]
     if longitude is not None:
         frost_temp = query_frost_temp(latitude, longitude)
-        print("temp: ", frost_temp)
         labels = frost_temp.get("labels")
         frost_temp = frost_temp.get("frost-temp")
         frost_wind = query_frost_wind(latitude, longitude).get("frost-wind")
@@ -456,7 +455,7 @@ async def recv_ch(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 labels,
                 frost_temp[::4], frost_wind[::4], frost_temp[1::4], frost_wind[1::4], frost_temp[2::4], frost_wind[2::4], frost_temp[3::4], frost_wind[3::4]
                 )
-            messages = generate_messages(frost_temp, frost_wind)
+            messages = generate_messages(frost_temp, frost_wind, labels)
             # if messages:
             #     caption = caption + "\n" + "\n".join(messages)
             spring_frost_table(frost_advice=frost_advice, messages=messages)

@@ -2,9 +2,9 @@ import jdatetime
 from jdatetime import datetime, timedelta
 
 
-def generate_messages(frost_temp: list[int], frost_wind: list[int]) -> list[str]:
-    dates = [(datetime.today() + timedelta(i)).strftime("%m/%d") for i in range(3)]
-    weekdays = get_weekday_names(3)
+def generate_messages(frost_temp: list[int], frost_wind: list[int], labels: list[str]) -> list[str]:
+    dates = [(datetime.today() + timedelta(i)).strftime("%m/%d") for i in range(len(labels))]
+    weekdays = get_weekday_names(len(labels))
     hours = ["6-0", "12-6", "18-12", "24-18"]
     messages = []
     temp_description = {
