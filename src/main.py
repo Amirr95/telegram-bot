@@ -34,6 +34,7 @@ async def main():
     farmers = db.get_all_pesteh_farmers()
     num_farmers = 0
     num_farms = 0
+    num_sms = 0
     for farmer in farmers:
         num_farmers += 1
         user_document = db.user_collection.find_one({"_id": farmer})
@@ -58,6 +59,7 @@ async def main():
                             res = await send_sms_method(text=sms_msg, receiver=phone_number)
                             logger.info(f"Code: {res[0]}")
                             logger.info(f"SMS sent to {farmer} - {phone_number}")
+                            num_sms += 1
                         except TimeoutError:
                             logger.error(f"TimeoutError while sending sms to {phone_number} (for {farmer})")
                     else:
@@ -67,6 +69,7 @@ async def main():
             else:
                 logger.warning(f"farm: {farm} of user: {farmer} has no location!")
     logger.info(f"Looked at {num_farms} farms belonging to {num_farmers} users.")
+    logger.info(f"Sent {num_sms} SMS.")
                     
 if __name__=="__main__":
     asyncio.run(main())
