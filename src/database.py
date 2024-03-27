@@ -27,23 +27,23 @@ class Database:
         pipeline = [
             {
                 '$project': {
-                    'farms': {
-                        '$objectToArray': '$farms'
+                    'farms': { '$objectToArray': '$farms' }, 
+                    'phone-number': '$phone-number'
                     }
-                }
-            }, {
+                },
+            {
                 '$unwind': '$farms'
-            }, {
+                },
+            {
                 '$match': {
-                    'farms.v.product': {
-                        '$regex': '^پسته'
+                    'farms.v.product': {'$regex': '^پسته'},
+                    'farms.v.location.longitude': { '$ne': None }, 
+                    'phone-number': { '$exists': True }
                     }
+                },
+            {
+                '$group': {'_id': '$_id'}
                 }
-            }, {
-                '$group': {
-                    '_id': '$_id'
-                }
-            }
         ]
         cursor = self.user_collection.aggregate(pipeline) # users who have atleast one pesteh farm 
         users = [user["_id"] for user in cursor]
