@@ -51,7 +51,7 @@ def query_frost_temp(latitude: float, longitude: float) -> Dict[str, int]:
     start_time = time(5, 30)
     frost_temp = {}
     dates = [(datetime.utcnow() + timedelta(days=i)).strftime("%Y%m%d") for i in range(3)]
-    dates = ["20240321", "20240322", "20240323"]
+    # dates = ["20240321", "20240322", "20240323"]
 
     if start_time <= current_time < end_time:
         labels = [(jdatetime.utcnow() + jtimedelta(days=i)).strftime("%Y/%m/%d") for i in range(3)]
@@ -141,7 +141,7 @@ def query_frost_wind(latitude: float, longitude: float) -> Dict[str, int]:
     start_time = time(5, 30)
     frost_wind = {}
     dates = [(datetime.utcnow() + timedelta(days=i)).strftime("%Y%m%d") for i in range(3)]
-    dates = ["20240321", "20240322", "20240323"]
+    # dates = ["20240321", "20240322", "20240323"]
 
     if start_time <= current_time < end_time:
         labels = [(jdatetime.utcnow() + jtimedelta(days=i)).strftime("%Y/%m/%d") for i in range(3)]
