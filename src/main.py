@@ -32,7 +32,10 @@ async def send_sms_method(text: str, receiver: str)->list[int]:
 async def main():
     db = database.Database()
     farmers = db.get_all_pesteh_farmers()
+    num_farmers = 0
+    num_farms = 0
     for farmer in farmers:
+        num_farmers += 1
         user_document = db.user_collection.find_one({"_id": farmer})
         phone_number = user_document.get("phone-number")
         if not phone_number:
@@ -40,6 +43,7 @@ async def main():
             continue
         farms = user_document.get("farms")
         for farm in farms:
+            num_farms += 1
             longitude = farms[farm].get("location", {}).get("longitude")
             latitude = farms[farm].get("location", {}).get("latitude")
             if longitude and latitude:
@@ -56,8 +60,13 @@ async def main():
                             logger.info(f"SMS sent to {farmer} - {phone_number}")
                         except TimeoutError:
                             logger.error(f"TimeoutError while sending sms to {phone_number} (for {farmer})")
+                    else:
+                        logger.info(f"farm: {farm} of user: {farmer} has no relevant messages!")
                 else:
                     logger.warning(f"Query returned an empty dictionary, user: {farmer} farm: {farm}")
+            else:
+                logger.warning(f"farm: {farm} of user: {farmer} has no location!")
+    logger.info(f"Looked at {num_farms} farms belonging to {num_farmers} users.")
                     
 if __name__=="__main__":
     asyncio.run(main())
